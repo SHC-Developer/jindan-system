@@ -4,11 +4,18 @@ import { getFirestore, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import type { UserRole } from '../types/user';
 
+// 이 프로젝트는 Storage 버킷이 firebasestorage.app 하나뿐임. appspot.com은 없어서 CORS 오류 방지용 치환.
+const rawBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? '';
+const storageBucket =
+  typeof rawBucket === 'string' && rawBucket.endsWith('.appspot.com')
+    ? rawBucket.replace(/\.appspot\.com$/, '.firebasestorage.app')
+    : rawBucket;
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  storageBucket,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
