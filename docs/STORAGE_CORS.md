@@ -78,7 +78,7 @@ gsutil cors get gs://jindan-system.firebasestorage.app
 
 ### 2. 프로젝트·버킷 확인
 
-- Firebase 콘솔 → **Storage** → 상단에 버킷 이름 표시 (예: `jindan-system.appspot.com`)
+- Firebase 콘솔 → **Storage** → 상단에 버킷 이름 표시 (예: `jindan-system.firebasestorage.app`)
 - Cloud Shell 또는 로컬 터미널에서:
 
 ```bash

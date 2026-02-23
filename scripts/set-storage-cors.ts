@@ -13,6 +13,14 @@ import { Storage } from '@google-cloud/storage';
 const keyPath = resolve(process.cwd(), 'firebase-admin-key.json');
 const corsPath = resolve(process.cwd(), 'storage-cors.json');
 
+/** gsutil cors set / JSON 형식과 동일 */
+interface CorsRule {
+  origin?: string[];
+  method?: string[];
+  responseHeader?: string[];
+  maxAgeSeconds?: number;
+}
+
 async function main() {
   let keyContent: string;
   try {
@@ -22,11 +30,15 @@ async function main() {
     process.exit(1);
   }
 
-  let cors: unknown;
+  let cors: CorsRule[];
   try {
-    cors = JSON.parse(readFileSync(corsPath, 'utf-8'));
-  } catch {
-    console.error('storage-cors.json 을 읽을 수 없습니다.');
+    const raw = JSON.parse(readFileSync(corsPath, 'utf-8')) as unknown;
+    if (!Array.isArray(raw)) throw new Error('storage-cors.json must be a JSON array');
+    cors = raw as CorsRule[];
+  } catch (e) {
+    if (e instanceof SyntaxError) console.error('storage-cors.json 을 읽을 수 없습니다.');
+    else if (e instanceof Error) console.error(e.message);
+    else console.error('storage-cors.json 을 읽을 수 없습니다.');
     process.exit(1);
   }
 
@@ -47,7 +59,7 @@ async function main() {
       // ignore
     }
   }
-  if (!bucketName) bucketName = 'jindan-system.appspot.com';
+  if (!bucketName) bucketName = 'jindan-system.firebasestorage.app';
 
   const bucket = storage.bucket(bucketName);
 

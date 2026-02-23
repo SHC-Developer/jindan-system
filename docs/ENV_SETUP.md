@@ -31,7 +31,7 @@ const firebaseConfig = {
   apiKey: "AIza...",
   authDomain: "jindan-system.firebaseapp.com",
   projectId: "jindan-system",
-  storageBucket: "jindan-system.appspot.com",
+  storageBucket: "jindan-system.firebasestorage.app",
   messagingSenderId: "123456789",
   appId: "1:123456789:web:abc..."
 };
@@ -49,7 +49,7 @@ const firebaseConfig = {
 VITE_FIREBASE_API_KEY="여기에 콘솔의 apiKey 값"
 VITE_FIREBASE_AUTH_DOMAIN="jindan-system.firebaseapp.com"
 VITE_FIREBASE_PROJECT_ID="jindan-system"
-VITE_FIREBASE_STORAGE_BUCKET="jindan-system.appspot.com"
+VITE_FIREBASE_STORAGE_BUCKET="jindan-system.firebasestorage.app"
 VITE_FIREBASE_MESSAGING_SENDER_ID="여기에 messagingSenderId 숫자"
 VITE_FIREBASE_APP_ID="여기에 appId 값"
 ```

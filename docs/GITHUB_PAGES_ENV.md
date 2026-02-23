@@ -13,7 +13,7 @@ GitHub Pages는 빌드 시점에 환경 변수가 필요합니다. `.env` 파일
 | `VITE_FIREBASE_API_KEY` | Firebase config의 apiKey |
 | `VITE_FIREBASE_AUTH_DOMAIN` | 예: `jindan-system.firebaseapp.com` |
 | `VITE_FIREBASE_PROJECT_ID` | 예: `jindan-system` |
-| `VITE_FIREBASE_STORAGE_BUCKET` | 예: `jindan-system.appspot.com` |
+| `VITE_FIREBASE_STORAGE_BUCKET` | 예: `jindan-system.firebasestorage.app` |
 | `VITE_FIREBASE_MESSAGING_SENDER_ID` | 숫자 (messagingSenderId) |
 | `VITE_FIREBASE_APP_ID` | Firebase config의 appId |
 
