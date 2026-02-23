@@ -1,13 +1,21 @@
-import React, { useState } from 'react';
-import { 
-  Hash, 
-  Search, 
-  Bell, 
-  Filter, 
-  Paperclip, 
-  Send, 
-  ChevronDown, 
-  ChevronRight, 
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from './hooks/useAuth';
+import { useChat } from './hooks/useChat';
+import { formatChatDateLabel, formatChatTime } from './lib/chat-format';
+import { downloadFileFromUrl } from './lib/download';
+import { formatFileSize, isImageFile } from './lib/storage';
+import type { AppUser } from './types/user';
+import type { ChatMessage } from './types/chat';
+import {
+  Hash,
+  Search,
+  Bell,
+  Filter,
+  Paperclip,
+  Send,
+  ChevronDown,
+  ChevronRight,
   MoreHorizontal,
   FileText,
   CheckSquare,
@@ -15,13 +23,22 @@ import {
   BarChart3,
   Settings,
   Menu,
-  X
+  X,
+  Star,
+  LogOut,
+  Download,
+  Loader2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // --- Types & Mock Data ---
 
-type MiddleMenuId = 'quantity' | 'photo' | 'report' | 'field_data' | 'material_test';
+type MiddleMenuId =
+  | 'quantity-extract'
+  | 'photo-album'
+  | 'report-review'
+  | 'field-survey'
+  | 'material-test';
 
 interface MiddleMenu {
   id: MiddleMenuId;
@@ -35,67 +52,38 @@ interface Project {
 }
 
 const PROJECTS: Project[] = [
-  { id: 'p1', name: '경기도 교량A' },
-  { id: 'p2', name: '경기도 교량B' },
-  { id: 'p3', name: '서울시 터널C' },
+  { id: 'gyeonggi-bridge-A', name: '경기도 교량A' },
+  { id: 'gyeonggi-bridge-B', name: '경기도 교량B' },
+  { id: 'seoul-tunnel-C', name: '서울시 터널C' },
 ];
 
 const MIDDLE_MENUS: MiddleMenu[] = [
-  { id: 'quantity', name: '물량표 추출', icon: BarChart3 },
-  { id: 'photo', name: '사진첩 자동', icon: ImageIcon },
-  { id: 'report', name: '보고서 작성 도구 및 검토', icon: FileText },
-  { id: 'field_data', name: '현장조사 자료 데이터 정리', icon: CheckSquare },
-  { id: 'material_test', name: '재료시험 작성 도구', icon: Settings },
-];
-
-const MOCK_MESSAGES = [
-  {
-    id: 1,
-    user: '김철수 팀장',
-    avatar: 'https://picsum.photos/seed/user1/40/40',
-    time: '오전 10:30',
-    content: '경기도 교량A 현장조사 데이터 정리가 거의 완료되었습니다. 확인 부탁드립니다.',
-    isMe: false,
-  },
-  {
-    id: 2,
-    user: '이영희 대리',
-    avatar: 'https://picsum.photos/seed/user2/40/40',
-    time: '오전 10:35',
-    content: '네, 알겠습니다. 지금 바로 확인해보겠습니다. 혹시 특이사항 있었나요?',
-    isMe: true,
-  },
-  {
-    id: 3,
-    user: '김철수 팀장',
-    avatar: 'https://picsum.photos/seed/user1/40/40',
-    time: '오전 10:36',
-    content: '3번 교각 하부 균열이 예상보다 심각해서 사진을 추가로 찍어두었습니다. 사진첩 자동화 탭에서 확인 가능합니다.',
-    isMe: false,
-  },
-  {
-    id: 4,
-    user: '박지성 주임',
-    avatar: 'https://picsum.photos/seed/user3/40/40',
-    time: '오전 10:40',
-    content: '참고로 재료시험 결과표도 방금 업로드했습니다.',
-    isMe: false,
-  },
+  { id: 'quantity-extract', name: '물량표 추출', icon: BarChart3 },
+  { id: 'photo-album', name: '사진첩 자동', icon: ImageIcon },
+  { id: 'report-review', name: '보고서 작성 도구 및 검토', icon: FileText },
+  { id: 'field-survey', name: '현장조사 자료 데이터 정리', icon: CheckSquare },
+  { id: 'material-test', name: '재료시험 작성 도구', icon: Settings },
 ];
 
 // --- Components ---
+
+interface SidebarProps {
+  selectedProject: Project;
+  setSelectedProject: (p: Project) => void;
+  selectedMenu: MiddleMenuId;
+  setSelectedMenu: (m: MiddleMenuId) => void;
+  user: { displayName: string | null; jobTitle: string | null; role: 'admin' | 'general' };
+  onLogout: () => void;
+}
 
 const Sidebar = ({ 
   selectedProject, 
   setSelectedProject, 
   selectedMenu, 
-  setSelectedMenu 
-}: {
-  selectedProject: Project;
-  setSelectedProject: (p: Project) => void;
-  selectedMenu: MiddleMenuId;
-  setSelectedMenu: (m: MiddleMenuId) => void;
-}) => {
+  setSelectedMenu,
+  user,
+  onLogout
+}: SidebarProps) => {
   const [isProjectsExpanded, setIsProjectsExpanded] = useState(true);
 
   return (
@@ -174,31 +162,232 @@ const Sidebar = ({
         <img 
           src="https://picsum.photos/seed/me/32/32" 
           alt="My Profile" 
-          className="w-8 h-8 rounded-full bg-gray-500 mr-2"
+          className="w-8 h-8 rounded-full bg-gray-500 mr-2 flex-shrink-0"
         />
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-white truncate">이영희 대리</div>
-          <div className="text-xs text-gray-400 truncate">온라인</div>
+          <div className="flex items-center gap-1.5 text-sm font-medium text-white truncate">
+            <span className="truncate">
+              {[user.displayName ?? '이름 없음', user.jobTitle].filter(Boolean).join(' ')}
+            </span>
+            {user.role === 'admin' && (
+              <Star size={14} className="text-red-500 flex-shrink-0 fill-red-500" aria-hidden />
+            )}
+          </div>
+          <div className="text-xs text-gray-400 truncate">
+            {user.role === 'admin' ? '관리자' : '사용자'}
+          </div>
         </div>
-        <Settings size={16} className="text-gray-400 hover:text-white cursor-pointer" />
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-md transition-colors"
+            title="로그아웃"
+            aria-label="로그아웃"
+          >
+            <LogOut size={16} />
+          </button>
+          <Settings size={16} className="text-gray-400 hover:text-white cursor-pointer" />
+        </div>
       </div>
     </div>
   );
 };
 
-const MainContent = ({ 
-  selectedProject, 
+/** 클릭 시 URL을 blob으로 받아 로컬에 다운로드 (외부 URL에서도 실제 다운로드 동작) */
+const handleDownload = async (e: React.MouseEvent, url: string, fileName: string | null) => {
+  e.preventDefault();
+  e.stopPropagation();
+  const name = fileName ?? new URL(url).pathname.split('/').pop() ?? 'download';
+  try {
+    await downloadFileFromUrl(url, decodeURIComponent(name));
+  } catch {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+};
+
+/** 파일 첨부가 있는 메시지의 표시 영역 */
+const FileAttachment = ({ msg, isMe }: { msg: ChatMessage; isMe: boolean }) => {
+  if (!msg.fileUrl) return null;
+  const image = msg.fileType ? isImageFile(msg.fileType) : false;
+
+  if (image) {
+    return (
+      <div className="mt-1.5 relative group">
+        <img
+          src={msg.fileUrl}
+          alt={msg.fileName ?? '이미지'}
+          className="max-w-full max-h-64 rounded-lg object-cover"
+          loading="lazy"
+        />
+        <a
+          href={msg.fileUrl}
+          onClick={(e) => handleDownload(e, msg.fileUrl!, msg.fileName)}
+          className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+          title="다운로드"
+        >
+          <Download size={14} />
+        </a>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={msg.fileUrl}
+      onClick={(e) => handleDownload(e, msg.fileUrl!, msg.fileName)}
+      className={`mt-1.5 flex items-center gap-2 p-2.5 rounded-lg border transition-colors ${
+        isMe
+          ? 'border-white/20 hover:bg-white/10'
+          : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+      }`}
+    >
+      <div className={`w-8 h-8 rounded flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+        isMe ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600'
+      }`}>
+        {(msg.fileName ?? '').split('.').pop()?.toUpperCase().slice(0, 4) || 'FILE'}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className={`text-sm font-medium truncate ${isMe ? 'text-white' : 'text-gray-700'}`}>
+          {msg.fileName}
+        </div>
+        {msg.fileSize != null && (
+          <div className={`text-xs ${isMe ? 'text-white/70' : 'text-gray-400'}`}>
+            {formatFileSize(msg.fileSize)}
+          </div>
+        )}
+      </div>
+      <Download size={14} className={`flex-shrink-0 ${isMe ? 'text-white/70' : 'text-gray-400'}`} />
+    </a>
+  );
+};
+
+const MainContent = ({
+  selectedProject,
   selectedMenuData,
   activeTab,
-  setActiveTab
-}: { 
+  setActiveTab,
+  user,
+}: {
   selectedProject: Project;
   selectedMenuData: MiddleMenu;
   activeTab: 'chat' | 'automation';
   setActiveTab: (t: 'chat' | 'automation') => void;
+  user: AppUser;
 }) => {
+  const { messages, sendMessage, sendFileMessage, loading, error, clearError } = useChat({
+    projectId: selectedProject.id,
+    subMenuId: selectedMenuData.id,
+    currentUser: user,
+  });
+
+  const [inputText, setInputText] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const dragCounter = useRef(0);
+
+  const groupedByDate = React.useMemo(() => {
+    const map = new Map<string, typeof messages>();
+    for (const msg of messages) {
+      const key = formatChatDateLabel(msg.createdAt);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(msg);
+    }
+    return Array.from(map.entries());
+  }, [messages]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async () => {
+    const t = inputText.trim();
+    if (!t) return;
+    setInputText('');
+    await sendMessage(t);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleFileUpload = useCallback(async (file: File) => {
+    clearError();
+    setUploadProgress(0);
+    try {
+      await sendFileMessage(file, '', (percent) => setUploadProgress(percent));
+    } catch {
+      // error already set in hook
+    } finally {
+      setUploadProgress(null);
+    }
+  }, [sendFileMessage, clearError]);
+
+  const handleFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) handleFileUpload(file);
+      e.target.value = '';
+    },
+    [handleFileUpload]
+  );
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current += 1;
+    if (e.dataTransfer.types.includes('Files')) setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current -= 1;
+    if (dragCounter.current === 0) setIsDragging(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+      dragCounter.current = 0;
+      const file = e.dataTransfer.files?.[0];
+      if (file) handleFileUpload(file);
+    },
+    [handleFileUpload]
+  );
+
+  const uploading = uploadProgress !== null;
+
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-white">
+      {/* Hidden file inputs */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
+
       {/* Header */}
       <header className="h-14 border-b border-gray-200 flex items-center justify-between px-4 bg-white flex-shrink-0">
         <div className="flex items-center min-w-0">
@@ -212,9 +401,9 @@ const MainContent = ({
         <div className="flex items-center space-x-3">
           <div className="relative hidden md:block">
             <Search size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="검색" 
+            <input
+              type="text"
+              placeholder="검색"
               className="pl-9 pr-4 py-1.5 bg-gray-100 border-none rounded-md text-sm focus:ring-2 focus:ring-brand-sub/50 outline-none w-48 transition-all"
             />
           </div>
@@ -234,8 +423,8 @@ const MainContent = ({
           <button
             onClick={() => setActiveTab('chat')}
             className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'chat' 
-                ? 'border-brand-main text-brand-main' 
+              activeTab === 'chat'
+                ? 'border-brand-main text-brand-main'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -244,8 +433,8 @@ const MainContent = ({
           <button
             onClick={() => setActiveTab('automation')}
             className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'automation' 
-                ? 'border-brand-main text-brand-main' 
+              activeTab === 'automation'
+                ? 'border-brand-main text-brand-main'
                 : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
@@ -257,64 +446,145 @@ const MainContent = ({
       {/* Content Area */}
       <div className="flex-1 overflow-hidden relative bg-brand-light/30">
         {activeTab === 'chat' ? (
-          <div className="h-full flex flex-col">
+          <div
+            className="h-full flex flex-col relative"
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            {/* Drag overlay */}
+            {isDragging && (
+              <div className="absolute inset-0 z-30 bg-brand-sub/10 border-2 border-dashed border-brand-sub rounded-lg flex items-center justify-center pointer-events-none">
+                <div className="bg-white px-6 py-4 rounded-xl shadow-lg text-center">
+                  <Paperclip size={32} className="mx-auto mb-2 text-brand-sub" />
+                  <p className="text-sm font-medium text-gray-700">파일을 여기에 놓으세요</p>
+                  <p className="text-xs text-gray-400 mt-1">최대 100MB</p>
+                </div>
+              </div>
+            )}
+
+            {/* Upload progress bar */}
+            {uploading && (
+              <div className="px-6 pt-2 flex-shrink-0">
+                <div className="flex items-center gap-2 bg-brand-sub/10 rounded-lg px-3 py-2">
+                  <Loader2 size={16} className="text-brand-sub animate-spin" />
+                  <div className="flex-1">
+                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-brand-sub rounded-full transition-all duration-300"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-500 font-medium w-10 text-right">
+                    {uploadProgress}%
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              <div className="flex justify-center my-4">
-                <span className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
-                  오늘
-                </span>
-              </div>
-              
-              {MOCK_MESSAGES.map((msg) => (
-                <div key={msg.id} className={`flex ${msg.isMe ? 'justify-end' : 'justify-start'}`}>
-                  {!msg.isMe && (
-                    <img 
-                      src={msg.avatar} 
-                      alt={msg.user} 
-                      className="w-9 h-9 rounded-full mr-3 mt-1 shadow-sm"
-                    />
-                  )}
-                  <div className={`max-w-[70%] ${msg.isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                    {!msg.isMe && (
-                      <div className="flex items-baseline mb-1">
-                        <span className="font-semibold text-sm text-gray-900 mr-2">{msg.user}</span>
-                        <span className="text-xs text-gray-400">{msg.time}</span>
-                      </div>
-                    )}
-                    <div 
-                      className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                        msg.isMe 
-                          ? 'bg-brand-main text-white rounded-tr-none' 
-                          : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
-                      }`}
-                    >
-                      {msg.content}
-                    </div>
-                    {msg.isMe && <span className="text-xs text-gray-400 mt-1 mr-1">{msg.time}</span>}
-                  </div>
+              {error && (
+                <div className="text-center text-sm text-red-600 py-2">
+                  {error}
                 </div>
-              ))}
+              )}
+              {loading ? (
+                <div className="flex justify-center py-8 text-gray-500 text-sm">
+                  메시지 불러오는 중…
+                </div>
+              ) : groupedByDate.length === 0 ? (
+                <div className="flex justify-center py-8 text-gray-500 text-sm">
+                  아직 메시지가 없습니다. 첫 메시지를 보내보세요.
+                </div>
+              ) : (
+                groupedByDate.map(([dateLabel, msgs]) => (
+                  <div key={dateLabel} className="space-y-4">
+                    <div className="flex justify-center my-4">
+                      <span className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
+                        {dateLabel}
+                      </span>
+                    </div>
+                    {msgs.map((msg) => {
+                      const isMe = msg.senderId === user.uid;
+                      const displayName = [msg.senderDisplayName, msg.senderJobTitle].filter(Boolean).join(' ');
+                      const timeStr = formatChatTime(msg.createdAt);
+                      return (
+                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          {!isMe && (
+                            <div className="w-9 h-9 rounded-full mr-3 mt-1 bg-brand-sub/20 flex items-center justify-center text-brand-dark text-sm font-semibold flex-shrink-0">
+                              {(msg.senderDisplayName?.[0] ?? '?')}
+                            </div>
+                          )}
+                          <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                            {!isMe && (
+                              <div className="flex items-baseline mb-1">
+                                <span className="font-semibold text-sm text-gray-900 mr-2">{displayName}</span>
+                                <span className="text-xs text-gray-400">{timeStr}</span>
+                              </div>
+                            )}
+                            <div
+                              className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                                isMe
+                                  ? 'bg-brand-main text-white rounded-tr-none'
+                                  : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
+                              }`}
+                            >
+                              {msg.text && <p>{msg.text}</p>}
+                              <FileAttachment msg={msg} isMe={isMe} />
+                            </div>
+                            {isMe && <span className="text-xs text-gray-400 mt-1 mr-1">{timeStr}</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))
+              )}
+              <div ref={messagesEndRef} />
             </div>
 
             {/* Input Area */}
             <div className="p-4 bg-white border-t border-gray-200">
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-2 focus-within:ring-2 focus-within:ring-brand-sub/30 focus-within:border-brand-sub transition-all shadow-sm">
-                <textarea 
+                <textarea
                   placeholder={`#${selectedMenuData.name}에 메시지 보내기`}
                   className="w-full bg-transparent border-none focus:ring-0 resize-none text-sm min-h-[40px] max-h-[120px] px-2 py-1"
                   rows={1}
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={uploading}
                 />
                 <div className="flex items-center justify-between mt-2 px-1">
                   <div className="flex space-x-2">
-                    <button className="p-1.5 text-gray-400 hover:bg-gray-200 rounded-md transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="p-1.5 text-gray-400 hover:text-brand-sub hover:bg-gray-200 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="파일 첨부 (최대 100MB)"
+                    >
                       <Paperclip size={18} />
                     </button>
-                    <button className="p-1.5 text-gray-400 hover:bg-gray-200 rounded-md transition-colors">
+                    <button
+                      type="button"
+                      onClick={() => imageInputRef.current?.click()}
+                      disabled={uploading}
+                      className="p-1.5 text-gray-400 hover:text-brand-sub hover:bg-gray-200 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="이미지 첨부"
+                    >
                       <ImageIcon size={18} />
                     </button>
                   </div>
-                  <button className="bg-brand-main hover:bg-brand-main/90 text-white p-2 rounded-lg transition-colors shadow-sm flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={handleSend}
+                    disabled={!inputText.trim() || uploading}
+                    className="bg-brand-main hover:bg-brand-main/90 disabled:opacity-50 disabled:cursor-not-allowed text-white p-2 rounded-lg transition-colors shadow-sm flex items-center justify-center"
+                  >
                     <Send size={16} />
                   </button>
                 </div>
@@ -430,11 +700,20 @@ const RightPanel = ({ selectedMenuData }: { selectedMenuData: MiddleMenu }) => {
 };
 
 export default function App() {
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
   const [selectedProject, setSelectedProject] = useState<Project>(PROJECTS[0]);
-  const [selectedMenuId, setSelectedMenuId] = useState<MiddleMenuId>('field_data');
+  const [selectedMenuId, setSelectedMenuId] = useState<MiddleMenuId>('field-survey');
   const [activeTab, setActiveTab] = useState<'chat' | 'automation'>('chat');
 
   const selectedMenuData = MIDDLE_MENUS.find(m => m.id === selectedMenuId) || MIDDLE_MENUS[0];
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login', { replace: true });
+  };
+
+  if (!user) return null;
 
   return (
     <div className="flex h-screen w-full overflow-hidden font-sans bg-brand-light">
@@ -443,12 +722,15 @@ export default function App() {
         setSelectedProject={setSelectedProject}
         selectedMenu={selectedMenuId}
         setSelectedMenu={setSelectedMenuId}
+        user={user}
+        onLogout={handleLogout}
       />
-      <MainContent 
+      <MainContent
         selectedProject={selectedProject}
         selectedMenuData={selectedMenuData}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        user={user}
       />
       <RightPanel selectedMenuData={selectedMenuData} />
     </div>

@@ -4,5 +4,13 @@ dist/
 coverage/
 .DS_Store
 *.log
-.env*
+
+# 환경 변수 (비밀 키 포함) — 절대 커밋하지 않음
+.env
+.env.local
+.env.*.local
 !.env.example
+
+# Firebase 서비스 계정 키 (스크립트용, 절대 커밋 금지)
+firebase-admin-key.json
+firebase-admin-key*.json
