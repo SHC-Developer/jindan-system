@@ -30,6 +30,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check Firebase secrets
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+        run: |
+          missing=""
+          [ -z "$VITE_FIREBASE_API_KEY" ] && missing="$missing VITE_FIREBASE_API_KEY"
+          [ -z "$VITE_FIREBASE_AUTH_DOMAIN" ] && missing="$missing VITE_FIREBASE_AUTH_DOMAIN"
+          [ -z "$VITE_FIREBASE_PROJECT_ID" ] && missing="$missing VITE_FIREBASE_PROJECT_ID"
+          [ -z "$VITE_FIREBASE_STORAGE_BUCKET" ] && missing="$missing VITE_FIREBASE_STORAGE_BUCKET"
+          [ -z "$VITE_FIREBASE_MESSAGING_SENDER_ID" ] && missing="$missing VITE_FIREBASE_MESSAGING_SENDER_ID"
+          [ -z "$VITE_FIREBASE_APP_ID" ] && missing="$missing VITE_FIREBASE_APP_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::다음 Repository Secret이 비어 있거나 없습니다. Settings → Secrets and variables → Actions에서 이름을 정확히 맞춰 추가하세요:$missing"
+            exit 1
+          fi
+          echo "Firebase Secrets 6개 모두 설정됨."
+
       - name: Build
         run: npm run build
         env:
