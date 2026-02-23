@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { getAuthInstance, isFirebaseConfigured } from '../lib/firebase';
-import { fetchAppUser, signInWithGoogle as authSignInWithGoogle, signOut as authSignOut } from '../lib/auth';
+import { fetchAppUser, subscribeAppUser, signInWithGoogle as authSignInWithGoogle, signOut as authSignOut } from '../lib/auth';
 import type { AppUser } from '../types/user';
 
 interface UseAuthResult {
@@ -30,26 +30,33 @@ export function useAuth(): UseAuthResult {
 
     try {
       const auth = getAuthInstance();
-      const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      let unsubFirestore: (() => void) | null = null;
+      const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
         if (cancelled) return;
+        unsubFirestore?.();
+        unsubFirestore = null;
         if (!firebaseUser) {
           setUser(null);
           setLoading(false);
           return;
         }
-        try {
-          const appUser = await fetchAppUser(firebaseUser);
-          if (!cancelled) setUser(appUser);
-        } catch (e) {
-          const message = e instanceof Error ? e.message : '역할 정보를 불러오지 못했습니다.';
-          if (!cancelled) setError(message);
-          if (!cancelled) setUser(null);
-        } finally {
-          if (!cancelled) setLoading(false);
-        }
+        setLoading(true);
+        setError(null);
+        unsubFirestore = subscribeAppUser(
+          firebaseUser,
+          (appUser) => {
+            if (!cancelled) setUser(appUser);
+            if (!cancelled) setLoading(false);
+          },
+          (msg) => {
+            if (!cancelled) setError(msg);
+            if (!cancelled) setLoading(false);
+          }
+        );
       });
       return () => {
         cancelled = true;
+        unsubFirestore?.();
         unsubscribe();
       };
     } catch (e) {
