@@ -1,6 +1,5 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'motion/react';
 import { useToastContext } from '../contexts/ToastContext';
 import type { ToastItem } from '../types/toast';
 
@@ -15,13 +14,8 @@ function ToastItemView({
   key?: string;
 }) {
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 24, x: 0 }}
-      animate={{ opacity: 1, y: 0, x: 0 }}
-      exit={{ opacity: 0, y: -12, x: 0 }}
-      transition={{ type: 'spring', damping: 24, stiffness: 300 }}
-      className="rounded-xl shadow-lg border border-gray-200 bg-brand-light p-4 min-w-[280px] max-w-[360px] cursor-pointer hover:bg-gray-50 transition-colors border-l-4 border-l-brand-main"
+    <div
+      className="rounded-xl shadow-lg border border-gray-200 bg-white p-4 min-w-[280px] max-w-[360px] cursor-pointer hover:bg-gray-50 transition-colors border-l-4 border-l-brand-main"
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -51,7 +45,7 @@ function ToastItemView({
           <span className="text-lg leading-none">&times;</span>
         </button>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -72,16 +66,14 @@ export function NotificationToastContainer() {
       aria-live="polite"
     >
       <div className="flex flex-col gap-3 items-end pointer-events-auto">
-        <AnimatePresence mode="popLayout">
-          {toasts.map((item) => (
-            <ToastItemView
-              key={item.id}
-              item={item}
-              onDismiss={() => removeToast(item.id)}
-              onClick={() => handleClick(item)}
-            />
-          ))}
-        </AnimatePresence>
+        {toasts.map((item) => (
+          <ToastItemView
+            key={item.id}
+            item={item}
+            onDismiss={() => removeToast(item.id)}
+            onClick={() => handleClick(item)}
+          />
+        ))}
       </div>
     </div>
   );

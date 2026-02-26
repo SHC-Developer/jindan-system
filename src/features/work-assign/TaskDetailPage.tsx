@@ -1,8 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTaskDetail } from '../../hooks/useTaskDetail';
 import { useAuth } from '../../hooks/useAuth';
-import { completeTask, addTaskAttachment } from '../../lib/tasks';
+import { submitTask, addTaskAttachment } from '../../lib/tasks';
 import { uploadTaskFile, formatFileSize } from '../../lib/storage';
 import { downloadFileFromUrl } from '../../lib/download';
 import { Loader2, ArrowLeft, Paperclip, CheckCircle, FileText } from 'lucide-react';
@@ -20,7 +20,7 @@ export function TaskDetailPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const isAssignee = user && task && task.assigneeId === user.uid;
-  const canEdit = isAssignee && task?.status === 'pending';
+  const canEdit = isAssignee && (task?.status === 'pending' || task?.status === 'revision');
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -48,17 +48,25 @@ export function TaskDetailPage() {
     }
   };
 
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+
+  useEffect(() => {
+    if (!showSuccessPopup) return;
+    const t = setTimeout(() => setShowSuccessPopup(false), 2500);
+    return () => clearTimeout(t);
+  }, [showSuccessPopup]);
+
   const handleComplete = async () => {
     if (!taskId || !user || !canEdit) return;
     setCompleting(true);
     setMessage(null);
     try {
-      await completeTask(taskId, user.displayName ?? null);
-      setMessage({ type: 'success', text: '업무를 완료 처리했습니다.' });
+      await submitTask(taskId, user.displayName ?? null);
+      setShowSuccessPopup(true);
     } catch (err) {
       setMessage({
         type: 'error',
-        text: err instanceof Error ? err.message : '완료 처리에 실패했습니다.',
+        text: err instanceof Error ? err.message : '완료 제출에 실패했습니다.',
       });
     } finally {
       setCompleting(false);
@@ -99,11 +107,12 @@ export function TaskDetailPage() {
     );
   }
 
-  const isCompleted = task.status === 'completed';
+  const isSubmittedOrApproved = task.status === 'submitted' || task.status === 'approved';
 
   return (
-    <div className="h-full flex flex-col overflow-hidden bg-brand-light/30">
-      <header className="flex-shrink-0 flex items-center gap-3 p-4 bg-white border-b border-gray-200">
+    <div className="w-full h-full flex flex-col overflow-hidden bg-brand-light/30">
+      <div className="max-w-6xl mx-auto w-full h-full flex flex-col min-h-0 overflow-hidden">
+        <header className="flex-shrink-0 flex items-center gap-3 p-4 bg-white border-b border-gray-200">
         <button
           type="button"
           onClick={() => navigate('/')}
@@ -125,6 +134,10 @@ export function TaskDetailPage() {
             <div>
               <dt className="text-gray-500">지시 일시</dt>
               <dd className="font-medium text-gray-900">{formatDate(task.createdAt)}</dd>
+            </div>
+            <div>
+              <dt className="text-gray-500">구분</dt>
+              <dd className="font-medium text-gray-900">{task.category}</dd>
             </div>
             <div>
               <dt className="text-gray-500">우선순위</dt>
@@ -191,17 +204,30 @@ export function TaskDetailPage() {
           )}
         </section>
 
-        {message && (
-          <p
-            className={`text-sm ${
-              message.type === 'success' ? 'text-green-600' : 'text-red-600'
-            }`}
+        {showSuccessPopup && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="완료 안내"
           >
+            <div
+              className="bg-white rounded-xl shadow-lg p-6 max-w-sm text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-brand-dark font-medium">업무 처리가 완료되었습니다.</p>
+              <p className="text-sm text-gray-500 mt-1">관리자 확인 후 최종 승인됩니다.</p>
+            </div>
+          </div>
+        )}
+
+        {message && (
+          <p className={`text-sm ${message.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
             {message.text}
           </p>
         )}
 
-        {isAssignee && !isCompleted && (
+        {isAssignee && !isSubmittedOrApproved && (
           <button
             type="button"
             onClick={handleComplete}
@@ -213,18 +239,19 @@ export function TaskDetailPage() {
             ) : (
               <CheckCircle size={20} />
             )}
-            업무 완료
+            완료 제출
           </button>
         )}
 
-        {isCompleted && (
+        {isSubmittedOrApproved && (
           <p className="text-sm text-green-600 flex items-center gap-2">
             <CheckCircle size={18} />
             {task.completedAt
-              ? `${formatDate(task.completedAt)}에 완료 처리되었습니다.`
-              : '완료됨'}
+              ? `${formatDate(task.completedAt)}에 완료 제출되었습니다.`
+              : '완료 제출됨'}
           </p>
         )}
+      </div>
       </div>
     </div>
   );

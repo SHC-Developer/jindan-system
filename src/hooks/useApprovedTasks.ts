@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import type { Unsubscribe } from 'firebase/firestore';
 import { getTasksRef } from '../lib/firestore-paths';
-import type { Task } from '../types/task';
 import { dataToTask } from '../lib/task-mapper';
+import type { Task } from '../types/task';
 
-export function useCompletedTasks(): {
+/** 업무 데이터베이스: status === 'approved' 인 업무만 */
+export function useApprovedTasks(): {
   tasks: Task[];
   loading: boolean;
   error: string | null;
@@ -26,12 +27,12 @@ export function useCompletedTasks(): {
     unsub = onSnapshot(
       q,
       (snapshot) => {
-        const list = snapshot.docs.map((d) => dataToTask(d.id, d.data() as Record<string, unknown>));
+        const list = snapshot.docs.map((d) => dataToTask(d.id, d.data()));
         setTasks(list);
         setLoading(false);
       },
       (err) => {
-        setError(err instanceof Error ? err.message : '완료 현황을 불러오지 못했습니다.');
+        setError(err instanceof Error ? err.message : '승인된 업무 목록을 불러오지 못했습니다.');
         setLoading(false);
         if (unsub) {
           unsub();

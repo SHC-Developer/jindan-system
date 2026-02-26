@@ -2,25 +2,8 @@ import { useState, useEffect } from 'react';
 import { onSnapshot, query, where, orderBy } from 'firebase/firestore';
 import type { Unsubscribe } from 'firebase/firestore';
 import { getTasksRef } from '../lib/firestore-paths';
+import { dataToTask } from '../lib/task-mapper';
 import type { Task } from '../types/task';
-
-function docToTask(id: string, data: Record<string, unknown>): Task {
-  const attachments = (data.attachments as Task['attachments']) ?? [];
-  return {
-    id,
-    assigneeId: (data.assigneeId as string) ?? '',
-    assigneeDisplayName: (data.assigneeDisplayName as string) ?? null,
-    createdBy: (data.createdBy as string) ?? '',
-    createdByDisplayName: (data.createdByDisplayName as string) ?? null,
-    title: (data.title as string) ?? '',
-    description: (data.description as string) ?? '',
-    priority: (data.priority as string) ?? '',
-    status: (data.status as Task['status']) ?? 'pending',
-    createdAt: (data.createdAt as number) ?? 0,
-    completedAt: (data.completedAt as number | null) ?? null,
-    attachments,
-  };
-}
 
 export function useTaskList(assigneeId: string | null): {
   tasks: Task[];
@@ -49,7 +32,9 @@ export function useTaskList(assigneeId: string | null): {
     unsub = onSnapshot(
       q,
       (snapshot) => {
-        const list = snapshot.docs.map((d) => docToTask(d.id, d.data()));
+        const list = snapshot.docs
+          .map((d) => dataToTask(d.id, d.data()))
+          .filter((t) => t.status !== 'approved');
         setTasks(list);
         setLoading(false);
       },

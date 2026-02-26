@@ -801,7 +801,13 @@ export default function App() {
         user={user}
         onLogout={handleLogout}
       />
-      <div className="flex flex-1 min-w-0 overflow-hidden">{mainContent}</div>
+      <div className="flex flex-1 min-w-0 overflow-hidden w-full">
+        {isTaskDetailPage || activeSection === 'work-assign' ? (
+          <div className="w-full h-full min-h-0 min-w-0 overflow-hidden">{mainContent}</div>
+        ) : (
+          mainContent
+        )}
+      </div>
     </div>
   );
 }
