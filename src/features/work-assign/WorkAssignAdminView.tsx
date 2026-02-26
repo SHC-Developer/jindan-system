@@ -321,12 +321,11 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="text-left py-3 px-4 font-medium text-gray-700 w-28 whitespace-nowrap">마감일</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700 w-20 whitespace-nowrap">구분</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-48">업무 내용</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[5rem] whitespace-nowrap">우선순위</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[5rem] whitespace-nowrap">담당자</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[11rem] whitespace-nowrap">승인 일시</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[10rem] whitespace-nowrap">첨부파일 (승인 시)</th>
-                      <th className="py-3 px-2 text-center font-medium text-gray-700 w-10"></th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">업무 내용</th>
+                      <th className="text-left py-3 px-2 font-medium text-gray-700 w-24 whitespace-nowrap">담당자</th>
+                      <th className="text-left py-3 px-2 font-medium text-gray-700 w-44 whitespace-nowrap">승인 일시</th>
+                      <th className="text-left py-3 px-2 font-medium text-gray-700 w-36 whitespace-nowrap">첨부파일 (승인 시)</th>
+                      <th className="py-3 px-1 text-center font-medium text-gray-700 w-10"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -337,14 +336,9 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                         </td>
                         <td className="py-3 px-4 text-gray-800 whitespace-nowrap">{t.category}</td>
                         <td className="py-3 px-4 text-gray-800 min-w-0 break-words">{t.title}</td>
-                        <td className="py-3 px-4 min-w-[5rem]">
-                          <span className="whitespace-nowrap inline-block">
-                            <PriorityBadge priority={t.priority} />
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-gray-800 whitespace-nowrap">{t.assigneeDisplayName ?? t.assigneeId.slice(0, 8)}</td>
-                        <td className="py-3 px-4 text-gray-600 whitespace-nowrap min-w-[11rem]">{formatDate(t.approvedAt)}</td>
-                        <td className="py-3 px-4 text-gray-700 min-w-[10rem]">
+                        <td className="py-3 px-2 text-gray-800 whitespace-nowrap">{t.assigneeDisplayName ?? t.assigneeId.slice(0, 8)}</td>
+                        <td className="py-3 px-2 text-gray-600 whitespace-nowrap">{formatDate(t.approvedAt)}</td>
+                        <td className="py-3 px-2 text-gray-700 min-w-0">
                           {!t.attachments || t.attachments.length === 0 ? (
                             <span className="text-gray-500 text-xs">없음</span>
                           ) : (
@@ -354,7 +348,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                                   <button
                                     type="button"
                                     onClick={() => downloadFileFromUrl(att.downloadUrl, att.fileName)}
-                                    className="flex items-center gap-1 text-xs text-brand-main hover:underline truncate max-w-[200px]"
+                                    className="flex items-center gap-1 text-xs text-brand-main hover:underline truncate max-w-[160px]"
                                   >
                                     <FileText size={12} />
                                     {att.fileName}
@@ -365,7 +359,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                             </ul>
                           )}
                         </td>
-                        <td className="py-3 px-2 text-center">
+                        <td className="py-3 px-1 text-center">
                           <button
                             type="button"
                             onClick={() => handleDeleteApprovedTask(t.id)}
