@@ -8,6 +8,7 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { getTasksRef, getTaskRef, getUserNotificationsRef, getUsersRef } from './firestore-paths';
+import { deleteTaskFileByUrl, deleteTaskStorageFilesExcept } from './storage';
 import type { Task, TaskCategory, TaskPriority } from '../types/task';
 import type { TaskNotification, NotificationType } from '../types/task';
 
@@ -98,9 +99,19 @@ export async function submitTask(
   }
 }
 
-/** 관리자 최종 승인: status → approved, 대시보드에서 제외 */
+/** 관리자 최종 승인: status → approved, 대시보드에서 제외. 승인 시점의 첨부만 Storage에 남기고 나머지 삭제 */
 export async function approveTask(taskId: string): Promise<void> {
   const taskRef = getTaskRef(taskId);
+  const snap = await getDoc(taskRef);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const attachments = (data.attachments as Task['attachments']) ?? [];
+  const approvedUrls = attachments.map((a) => a.downloadUrl).filter(Boolean);
+  try {
+    await deleteTaskStorageFilesExcept(taskId, approvedUrls);
+  } catch {
+    // Storage 정리 실패해도 승인은 진행(승인 시점 첨부는 Firestore에 있음)
+  }
   await updateDoc(taskRef, {
     status: 'approved',
     approvedAt: Date.now(),
@@ -167,4 +178,24 @@ export async function addTaskAttachment(
   await updateDoc(taskRef, {
     attachments: [...attachments, attachment],
   });
+}
+
+/** 업무 첨부파일 1건 제거 (인덱스 기준). Firestore 참조 삭제 + Firebase Storage에서 파일 삭제 */
+export async function removeTaskAttachment(taskId: string, index: number): Promise<void> {
+  const taskRef = getTaskRef(taskId);
+  const snap = await getDoc(taskRef);
+  if (!snap.exists()) return;
+  const data = snap.data();
+  const attachments = (data.attachments as Task['attachments']) ?? [];
+  if (index < 0 || index >= attachments.length) return;
+  const removed = attachments[index];
+  const next = attachments.filter((_, i) => i !== index);
+  if (removed?.downloadUrl) {
+    try {
+      await deleteTaskFileByUrl(removed.downloadUrl);
+    } catch {
+      // Storage 삭제 실패(권한/파일 없음/URL 형식 등) 시에도 Firestore에서는 제거해 UI 일관성 유지
+    }
+  }
+  await updateDoc(taskRef, { attachments: next });
 }

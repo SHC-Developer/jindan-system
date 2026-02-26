@@ -10,14 +10,16 @@ import {
   approveTask,
   requestRevision,
   addTaskAttachment,
+  removeTaskAttachment,
   deleteTask,
 } from '../../lib/tasks';
-import { uploadTaskFile } from '../../lib/storage';
+import { uploadTaskFile, formatFileSize } from '../../lib/storage';
+import { downloadFileFromUrl } from '../../lib/download';
 import type { AppUser } from '../../types/user';
 import type { Task, TaskCategory, TaskPriority } from '../../types/task';
 import { DueDateCell } from './DueDateCell';
 import { PriorityBadge } from './PriorityBadge';
-import { Loader2, Send, Database, LayoutDashboard, Plus, User, Paperclip, Trash2 } from 'lucide-react';
+import { Loader2, Send, Database, LayoutDashboard, Plus, User, Paperclip, Trash2, FileText } from 'lucide-react';
 
 type TabId = 'dashboard' | 'database';
 
@@ -67,10 +69,15 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
     Array.from({ length: DEFAULT_ROW_COUNT }, (_, i) => createEmptyRow(`row-${i}`))
   );
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [submitMessage, setSubmitMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [deletingApprovedId, setDeletingApprovedId] = useState<string | null>(null);
+  const [dashboardUploadingTaskId, setDashboardUploadingTaskId] = useState<string | null>(null);
+  const [dashboardUploadProgress, setDashboardUploadProgress] = useState(0);
+  const [dashboardFileTargetTaskId, setDashboardFileTargetTaskId] = useState<string | null>(null);
   const referenceInputRef = React.useRef<HTMLInputElement>(null);
   const referenceRowKeyRef = React.useRef<string | null>(null);
+  const dashboardFileInputRef = React.useRef<HTMLInputElement>(null);
 
   const { users, loading: usersLoading, error: usersError } = useUserList();
   const { tasks: dashboardTasks, loading: dashboardLoading, error: dashboardError } = useDashboardTasks();
@@ -124,6 +131,32 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
     }
   };
 
+  const openDashboardFileInput = (taskId: string) => {
+    setDashboardFileTargetTaskId(taskId);
+    setTimeout(() => dashboardFileInputRef.current?.click(), 0);
+  };
+
+  const handleDashboardFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const taskId = dashboardFileTargetTaskId;
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    setDashboardFileTargetTaskId(null);
+    if (!taskId || !file) return;
+    setDashboardUploadingTaskId(taskId);
+    setDashboardUploadProgress(0);
+    try {
+      const result = await uploadTaskFile(file, taskId, (p) => setDashboardUploadProgress(p));
+      await addTaskAttachment(taskId, {
+        downloadUrl: result.downloadUrl,
+        fileName: result.fileName,
+        fileSize: result.fileSize,
+        fileType: result.fileType,
+      });
+    } finally {
+      setDashboardUploadingTaskId(null);
+    }
+  };
+
   const updateDraftRow = (key: string, updates: Partial<Omit<DraftTaskRow, 'key'>>) => {
     setDraftRows((prev) =>
       prev.map((row) => (row.key === key ? { ...row, ...updates } : row))
@@ -140,6 +173,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
     }
     setSubmitting(true);
     setSubmitMessage(null);
+    setUploadProgress(null);
     try {
       for (const row of filled) {
         const taskId = await createTask({
@@ -154,7 +188,8 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
           dueDate: row.dueDate ?? undefined,
         });
         for (const file of row.referenceFiles) {
-          const result = await uploadTaskFile(file, taskId);
+          setUploadProgress(0);
+          const result = await uploadTaskFile(file, taskId, (p) => setUploadProgress(p));
           await addTaskAttachment(taskId, {
             downloadUrl: result.downloadUrl,
             fileName: result.fileName,
@@ -162,6 +197,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
             fileType: result.fileType,
           });
         }
+        setUploadProgress(null);
         await createNotification(selectedEmployee.uid, {
           type: 'task_assigned',
           taskId,
@@ -179,6 +215,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
         text: err instanceof Error ? err.message : '지시 저장 중 오류가 발생했습니다.',
       });
     } finally {
+      setUploadProgress(null);
       setSubmitting(false);
     }
   };
@@ -243,7 +280,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
               <p className="text-sm text-gray-500">승인된 업무가 없습니다.</p>
             ) : (
               <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-                <table className="w-full text-sm min-w-[640px]">
+                <table className="w-full text-sm min-w-[800px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[7rem] whitespace-nowrap">마감일</th>
@@ -252,6 +289,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                       <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[5rem] whitespace-nowrap">우선순위</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[5rem] whitespace-nowrap">담당자</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[11rem] whitespace-nowrap">승인 일시</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[10rem] whitespace-nowrap">첨부파일 (승인 시)</th>
                       <th className="py-3 px-2 text-center font-medium text-gray-700 w-10"></th>
                     </tr>
                   </thead>
@@ -270,6 +308,27 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                         </td>
                         <td className="py-3 px-4 text-gray-800 whitespace-nowrap">{t.assigneeDisplayName ?? t.assigneeId.slice(0, 8)}</td>
                         <td className="py-3 px-4 text-gray-600 whitespace-nowrap min-w-[11rem]">{formatDate(t.approvedAt)}</td>
+                        <td className="py-3 px-4 text-gray-700 min-w-[10rem]">
+                          {!t.attachments || t.attachments.length === 0 ? (
+                            <span className="text-gray-500 text-xs">없음</span>
+                          ) : (
+                            <ul className="space-y-0.5">
+                              {t.attachments.map((att, i) => (
+                                <li key={i}>
+                                  <button
+                                    type="button"
+                                    onClick={() => downloadFileFromUrl(att.downloadUrl, att.fileName)}
+                                    className="flex items-center gap-1 text-xs text-brand-main hover:underline truncate max-w-[200px]"
+                                  >
+                                    <FileText size={12} />
+                                    {att.fileName}
+                                    <span className="text-gray-400">({formatFileSize(att.fileSize)})</span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </td>
                         <td className="py-3 px-2 text-center">
                           <button
                             type="button"
@@ -429,9 +488,10 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                                 >
                                   <Paperclip size={14} /> 파일 첨부
                                 </button>
+                                <p className="text-xs text-gray-500">여러 파일 선택 가능</p>
                                 {row.referenceFiles.length > 0 && (
-                                  <p className="text-xs text-gray-500">
-                                    {row.referenceFiles.length}개 파일
+                                  <p className="text-xs text-gray-600 font-medium">
+                                    {row.referenceFiles.length}개 선택됨
                                   </p>
                                 )}
                               </div>
@@ -462,6 +522,12 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                     <p className={`mt-3 text-sm ${submitMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
                       {submitMessage.text}
                     </p>
+                  )}
+                  {uploadProgress !== null && (
+                    <div className="mt-3 flex items-center gap-2 text-sm text-brand-main">
+                      <Loader2 size={18} className="animate-spin flex-shrink-0" />
+                      <span>파일 업로드 중… {uploadProgress}%</span>
+                    </div>
                   )}
                   <div className="flex gap-2 mt-4">
                     <button
@@ -497,34 +563,48 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                 ) : dashboardError ? (
                   <div className="p-8 text-center text-sm text-red-600">{dashboardError}</div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-28"># 마감일</th>
-                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">담당자</th>
-                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">구분</th>
-                          <th className="py-3 px-4 text-left font-medium text-gray-700">업무 내용</th>
-                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">우선순위</th>
-                          <th className="py-3 px-4 text-left font-medium text-gray-700 min-w-[200px]">완료 / 승인</th>
-                          <th className="py-3 px-2 text-center font-medium text-gray-700 w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {dashboardTasks.map((task) => (
-                          <DashboardRow
-                            key={task.id}
-                            task={task}
-                            onUpdateTask={updateTask}
-                            onApprove={approveTask}
-                            onRequestRevision={requestRevision}
-                            onOpenDetail={() => navigate(`/task/${task.id}`)}
-                            onDelete={deleteTask}
-                          />
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                  <>
+                    <input
+                      ref={dashboardFileInputRef}
+                      type="file"
+                      className="hidden"
+                      onChange={handleDashboardFileSelect}
+                    />
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200">
+                            <th className="py-3 px-4 text-left font-medium text-gray-700 w-28"># 마감일</th>
+                            <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">담당자</th>
+                            <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">구분</th>
+                            <th className="py-3 px-4 text-left font-medium text-gray-700">업무 내용</th>
+                            <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">우선순위</th>
+                            <th className="py-3 px-4 text-left font-medium text-gray-700 min-w-[240px]">완료 / 승인</th>
+                            <th className="py-3 px-2 text-center font-medium text-gray-700 w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dashboardTasks.map((task) => (
+                            <DashboardRow
+                              key={task.id}
+                              task={task}
+                              onUpdateTask={updateTask}
+                              onApprove={approveTask}
+                              onRequestRevision={requestRevision}
+                              onOpenDetail={() => navigate(`/task/${task.id}`)}
+                              onDelete={deleteTask}
+                              onOpenFileInput={openDashboardFileInput}
+                              onRemoveAttachment={removeTaskAttachment}
+                              isUploading={dashboardUploadingTaskId === task.id}
+                              uploadProgress={dashboardUploadProgress}
+                              onDownloadFile={downloadFileFromUrl}
+                              formatFileSize={formatFileSize}
+                            />
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -543,16 +623,36 @@ interface DashboardRowProps {
   onRequestRevision: (taskId: string, u: { title?: string; description?: string; category?: TaskCategory; priority?: TaskPriority }) => Promise<void>;
   onOpenDetail: () => void;
   onDelete: (taskId: string) => Promise<void>;
+  onOpenFileInput: (taskId: string) => void;
+  onRemoveAttachment: (taskId: string, index: number) => Promise<void>;
+  isUploading: boolean;
+  uploadProgress: number;
+  onDownloadFile: (url: string, fileName: string) => Promise<void>;
+  formatFileSize: (bytes: number) => string;
   key?: React.Key;
 }
 
-function DashboardRow({ task, onUpdateTask, onApprove, onRequestRevision, onOpenDetail, onDelete }: DashboardRowProps) {
+function DashboardRow({
+  task,
+  onUpdateTask,
+  onApprove,
+  onRequestRevision,
+  onOpenDetail,
+  onDelete,
+  onOpenFileInput,
+  onRemoveAttachment,
+  isUploading,
+  uploadProgress,
+  onDownloadFile,
+  formatFileSize,
+}: DashboardRowProps) {
   const [saving, setSaving] = useState(false);
   const [revising, setRevising] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [localTitle, setLocalTitle] = useState(task.title);
   const [localDescription, setLocalDescription] = useState(task.description);
   const isSubmitted = task.status === 'submitted';
+  const attachments = Array.isArray(task.attachments) ? task.attachments : [];
 
   useEffect(() => {
     setLocalTitle(task.title);
@@ -681,38 +781,87 @@ function DashboardRow({ task, onUpdateTask, onApprove, onRequestRevision, onOpen
           ))}
         </select>
       </td>
-      <td className="py-3 px-4">
-        {!isSubmitted ? (
-          <span className="text-gray-400 text-xs">대기 중</span>
-        ) : (
-          <div className="inline-flex flex-col gap-1.5">
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={onOpenDetail}
-                className="text-xs font-medium px-3 py-1.5 rounded bg-brand-sub text-white hover:bg-brand-sub/90"
-              >
-                내용확인
-              </button>
-              <button
-                type="button"
-                onClick={handleApprove}
-                disabled={saving}
-                className="text-xs font-medium px-3 py-1.5 rounded bg-brand-main text-white hover:bg-brand-main/90 disabled:opacity-50"
-              >
-                최종 승인
-              </button>
-            </div>
+      <td className="py-3 px-4 align-top overflow-visible min-w-[240px]">
+        <div className="flex flex-col gap-2">
+          {/* 첨부 파일 블록: 항상 맨 위에 배치해 셀 잘림 방지 */}
+          <div className="border border-brand-sub/40 rounded-lg bg-brand-light/50 px-2.5 py-2 space-y-1.5 flex-shrink-0">
+            <p className="text-xs font-semibold text-brand-dark flex items-center gap-1">
+              <Paperclip size={14} /> 첨부 파일 {attachments.length > 0 && <span className="text-brand-main">({attachments.length}개)</span>}
+            </p>
+            {attachments.length === 0 ? (
+              <p className="text-xs text-gray-500">없음</p>
+            ) : (
+              <ul className="space-y-0.5">
+                {attachments.map((att, i) => (
+                  <li key={i} className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onDownloadFile(att.downloadUrl, att.fileName)}
+                      className="flex items-center gap-1 text-xs text-brand-main hover:underline truncate max-w-[160px]"
+                    >
+                      <FileText size={12} />
+                      {att.fileName}
+                    </button>
+                    <span className="text-gray-400 text-xs flex-shrink-0">({formatFileSize(att.fileSize)})</span>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveAttachment(task.id, i)}
+                      className="p-0.5 text-gray-400 hover:text-red-600 rounded"
+                      aria-label="첨부 삭제"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
             <button
               type="button"
-              onClick={handleRevision}
-              disabled={revising}
-              className="w-full text-xs font-medium px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+              onClick={() => onOpenFileInput(task.id)}
+              disabled={isUploading}
+              className="flex items-center gap-1 text-xs text-brand-main hover:underline disabled:opacity-50 font-medium"
             >
-              재검토 지시
+              <Paperclip size={12} /> 파일 첨부
             </button>
+            {isUploading && (
+              <div className="flex items-center gap-1 text-xs text-gray-500">
+                <Loader2 size={12} className="animate-spin" />
+                {uploadProgress}%
+              </div>
+            )}
           </div>
-        )}
+          {!isSubmitted ? (
+            <span className="text-gray-400 text-xs">대기 중</span>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onOpenDetail}
+                  className="text-xs font-medium px-3 py-1.5 rounded bg-brand-sub text-white hover:bg-brand-sub/90"
+                >
+                  내용확인
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApprove}
+                  disabled={saving}
+                  className="text-xs font-medium px-3 py-1.5 rounded bg-brand-main text-white hover:bg-brand-main/90 disabled:opacity-50"
+                >
+                  최종 승인
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleRevision}
+                disabled={revising}
+                className="w-full text-xs font-medium px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+              >
+                재검토 지시
+              </button>
+            </>
+          )}
+        </div>
       </td>
       <td className="py-3 px-2 text-center">
         <button

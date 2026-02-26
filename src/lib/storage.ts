@@ -1,4 +1,4 @@
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL, deleteObject, listAll } from 'firebase/storage';
 import type { UploadTaskSnapshot } from 'firebase/storage';
 import { getStorageInstance } from './firebase';
 
@@ -149,4 +149,54 @@ export async function uploadTaskFile(
     uploadPromise.finally(() => clearTimeout(timeoutId)),
     timeoutPromise,
   ]);
+}
+
+/**
+ * Firebase Storage 다운로드 URL에서 저장 경로를 추출한다.
+ * URL 형식: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media&token=...
+ */
+function getStoragePathFromDownloadUrl(downloadUrl: string): string | null {
+  try {
+    const url = new URL(downloadUrl);
+    const match = url.pathname.match(/\/o\/(.+)$/);
+    if (!match) return null;
+    return decodeURIComponent(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 업무 첨부 파일을 Firebase Storage에서 삭제한다.
+ * downloadUrl은 업로드 시 받은 Storage 다운로드 URL이어야 한다.
+ */
+export async function deleteTaskFileByUrl(downloadUrl: string): Promise<void> {
+  const path = getStoragePathFromDownloadUrl(downloadUrl);
+  if (!path) return;
+  const storage = getStorageInstance();
+  const storageRef = ref(storage, path);
+  await deleteObject(storageRef);
+}
+
+/**
+ * 최종 승인 시: task-files/{taskId}/ 아래 파일 중 approvedDownloadUrls에 없는 것은 Storage에서 삭제.
+ * 승인 시점의 첨부만 남기고 재검토 과정에서 생긴 나머지 파일을 정리할 때 사용.
+ */
+export async function deleteTaskStorageFilesExcept(
+  taskId: string,
+  approvedDownloadUrls: string[]
+): Promise<void> {
+  const approvedPaths = new Set<string>();
+  for (const url of approvedDownloadUrls) {
+    const p = getStoragePathFromDownloadUrl(url);
+    if (p) approvedPaths.add(p);
+  }
+  const storage = getStorageInstance();
+  const listRef = ref(storage, `task-files/${taskId}`);
+  const result = await listAll(listRef);
+  await Promise.all(
+    result.items
+      .filter((itemRef) => !approvedPaths.has(itemRef.fullPath))
+      .map((itemRef) => deleteObject(itemRef))
+  );
 }

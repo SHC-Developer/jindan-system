@@ -2,10 +2,10 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useTaskDetail } from '../../hooks/useTaskDetail';
 import { useAuth } from '../../hooks/useAuth';
-import { submitTask, addTaskAttachment } from '../../lib/tasks';
+import { submitTask, addTaskAttachment, removeTaskAttachment } from '../../lib/tasks';
 import { uploadTaskFile, formatFileSize } from '../../lib/storage';
 import { downloadFileFromUrl } from '../../lib/download';
-import { Loader2, ArrowLeft, Paperclip, CheckCircle, FileText } from 'lucide-react';
+import { Loader2, ArrowLeft, Paperclip, CheckCircle, FileText, Trash2 } from 'lucide-react';
 
 export function TaskDetailPage() {
   const { taskId } = useParams<{ taskId: string }>();
@@ -17,6 +17,7 @@ export function TaskDetailPage() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [completing, setCompleting] = useState(false);
+  const [removingIndex, setRemovingIndex] = useState<number | null>(null);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [submissionNote, setSubmissionNote] = useState('');
 
@@ -46,6 +47,22 @@ export function TaskDetailPage() {
     } finally {
       setUploading(false);
       setUploadProgress(0);
+    }
+  };
+
+  const handleRemoveAttachment = async (index: number) => {
+    if (!taskId || !canEdit) return;
+    setRemovingIndex(index);
+    setMessage(null);
+    try {
+      await removeTaskAttachment(taskId, index);
+    } catch (err) {
+      setMessage({
+        type: 'error',
+        text: err instanceof Error ? err.message : '첨부파일 삭제에 실패했습니다.',
+      });
+    } finally {
+      setRemovingIndex(null);
     }
   };
 
@@ -185,7 +202,7 @@ export function TaskDetailPage() {
           ) : (
             <ul className="space-y-2">
               {task.attachments.map((att, i) => (
-                <li key={i}>
+                <li key={i} className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() =>
@@ -197,6 +214,21 @@ export function TaskDetailPage() {
                     {att.fileName}
                     <span className="text-gray-400">({formatFileSize(att.fileSize)})</span>
                   </button>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttachment(i)}
+                      disabled={removingIndex !== null}
+                      className="p-1 text-gray-400 hover:text-red-600 rounded disabled:opacity-50"
+                      aria-label="첨부파일 삭제"
+                    >
+                      {removingIndex === i ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
