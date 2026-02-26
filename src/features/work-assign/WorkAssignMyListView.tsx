@@ -5,7 +5,7 @@ import type { AppUser } from '../../types/user';
 import type { Task } from '../../types/task';
 import { PriorityBadge } from './PriorityBadge';
 import { DueDateCell } from './DueDateCell';
-import { Loader2, FileText, CheckCircle, Circle } from 'lucide-react';
+import { Loader2, FileText, CheckCircle, Circle, AlertCircle } from 'lucide-react';
 
 interface WorkAssignMyListViewProps {
   currentUser: AppUser;
@@ -57,42 +57,58 @@ export function WorkAssignMyListView({ currentUser }: WorkAssignMyListViewProps)
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="py-3 px-4 text-left font-medium text-gray-700 w-24"># 마감일</th>
+                <th className="py-3 px-4 text-left font-medium text-gray-700 min-w-[7.5rem] whitespace-nowrap"># 마감일</th>
                 <th className="py-3 px-4 text-left font-medium text-gray-700 w-20">구분</th>
                 <th className="py-3 px-4 text-left font-medium text-gray-700">업무 내용</th>
-                <th className="py-3 px-4 text-left font-medium text-gray-700 w-20">우선순위</th>
+                <th className="py-3 px-4 text-left font-medium text-gray-700 min-w-[5rem] whitespace-nowrap">재검토 요청</th>
+                <th className="py-3 px-4 text-left font-medium text-gray-700 min-w-[5.5rem] whitespace-nowrap">우선순위</th>
                 <th className="py-3 px-4 text-center font-medium text-gray-700 w-20">완료</th>
               </tr>
             </thead>
             <tbody>
-              {tasks.map((task) => (
-                <tr
-                  key={task.id}
-                  onClick={() => navigate(`/task/${task.id}`)}
-                  className="border-b border-gray-100 last:border-0 hover:bg-brand-sub/5 cursor-pointer"
-                >
-                  <td className="py-3 px-4">
-                    <DueDateCell dueDate={task.dueDate} onSave={() => {}} editable={false} />
-                  </td>
-                  <td className="py-3 px-4 text-gray-800">{task.category}</td>
-                  <td className="py-3 px-4">
-                    <p className="font-medium text-gray-900">{task.title}</p>
-                    {task.description && (
-                      <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{task.description}</p>
-                    )}
-                  </td>
-                  <td className="py-3 px-4">
-                    <PriorityBadge priority={task.priority} />
-                  </td>
-                  <td className="py-3 px-4 text-center">
-                    {task.status === 'submitted' || task.status === 'approved' ? (
-                      <CheckCircle size={18} className="text-green-600 inline" />
-                    ) : (
-                      <Circle size={18} className="text-gray-300 inline" />
-                    )}
-                  </td>
-                </tr>
-              ))}
+              {tasks.map((task) => {
+                const isRevision = task.status === 'revision';
+                return (
+                  <tr
+                    key={task.id}
+                    onClick={() => navigate(`/task/${task.id}`)}
+                    className={`border-b border-gray-100 last:border-0 cursor-pointer ${
+                      isRevision ? 'bg-amber-50 hover:bg-amber-100/80' : 'hover:bg-brand-sub/5'
+                    }`}
+                  >
+                    <td className="py-3 px-4 whitespace-nowrap min-w-[7.5rem]">
+                      <DueDateCell dueDate={task.dueDate} onSave={() => {}} editable={false} />
+                    </td>
+                    <td className="py-3 px-4 text-gray-800">{task.category}</td>
+                    <td className="py-3 px-4">
+                      <p className="font-medium text-gray-900">{task.title}</p>
+                      {task.description && (
+                        <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{task.description}</p>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {isRevision ? (
+                        <span className="inline-flex items-center gap-1 text-amber-700 text-xs font-medium">
+                          <AlertCircle size={14} />
+                          재검토
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-xs">-</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 whitespace-nowrap">
+                      <PriorityBadge priority={task.priority} />
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      {task.status === 'submitted' || task.status === 'approved' ? (
+                        <CheckCircle size={18} className="text-green-600 inline" />
+                      ) : (
+                        <Circle size={18} className="text-gray-300 inline" />
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

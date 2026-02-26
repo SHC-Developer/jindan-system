@@ -19,7 +19,7 @@ import type { AppUser } from '../../types/user';
 import type { Task, TaskCategory, TaskPriority } from '../../types/task';
 import { DueDateCell } from './DueDateCell';
 import { PriorityBadge } from './PriorityBadge';
-import { Loader2, Send, Database, LayoutDashboard, Plus, User, Paperclip, Trash2, FileText } from 'lucide-react';
+import { Loader2, Send, Database, LayoutDashboard, Plus, User, Users, Paperclip, Trash2, FileText, X } from 'lucide-react';
 
 type TabId = 'dashboard' | 'database';
 
@@ -65,6 +65,9 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [selectedEmployee, setSelectedEmployee] = useState<UserListItem | null>(null);
+  const [isJointMode, setIsJointMode] = useState(false);
+  const [jointAssignees, setJointAssignees] = useState<UserListItem[]>([]);
+  const [showAddJointModal, setShowAddJointModal] = useState(false);
   const [draftRows, setDraftRows] = useState<DraftTaskRow[]>(() =>
     Array.from({ length: DEFAULT_ROW_COUNT }, (_, i) => createEmptyRow(`row-${i}`))
   );
@@ -85,14 +88,35 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
 
   const handleSelectEmployee = (user: UserListItem) => {
     setSelectedEmployee(user);
+    setIsJointMode(false);
+    setJointAssignees([]);
+    setDraftRows(Array.from({ length: DEFAULT_ROW_COUNT }, (_, i) => createEmptyRow(`row-${Date.now()}-${i}`)));
+    setSubmitMessage(null);
+  };
+
+  const handleEnterJointMode = () => {
+    setSelectedEmployee(null);
+    setIsJointMode(true);
+    setJointAssignees([]);
     setDraftRows(Array.from({ length: DEFAULT_ROW_COUNT }, (_, i) => createEmptyRow(`row-${Date.now()}-${i}`)));
     setSubmitMessage(null);
   };
 
   const handleBackToEmployeeList = () => {
     setSelectedEmployee(null);
+    setIsJointMode(false);
+    setJointAssignees([]);
+    setShowAddJointModal(false);
     setDraftRows(Array.from({ length: DEFAULT_ROW_COUNT }, (_, i) => createEmptyRow(`row-${i}`)));
     setSubmitMessage(null);
+  };
+
+  const handleAddJointAssignee = (user: UserListItem) => {
+    setJointAssignees((prev) => (prev.some((u) => u.uid === user.uid) ? prev : [...prev, user]));
+  };
+
+  const handleRemoveJointAssignee = (uid: string) => {
+    setJointAssignees((prev) => prev.filter((u) => u.uid !== uid));
   };
 
   const handleAddRow = () => {
@@ -163,52 +187,64 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
     );
   };
 
+  const assigneesForSubmit = isJointMode ? jointAssignees : selectedEmployee ? [selectedEmployee] : [];
+
   const handleBatchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedEmployee) return;
     const filled = draftRows.filter((r) => r.title.trim());
     if (filled.length === 0) {
       setSubmitMessage({ type: 'error', text: '한 건 이상 업무 내용(제목)을 입력하세요.' });
+      return;
+    }
+    if (assigneesForSubmit.length === 0) {
+      setSubmitMessage({ type: 'error', text: '지시할 담당자를 한 명 이상 선택하세요.' });
       return;
     }
     setSubmitting(true);
     setSubmitMessage(null);
     setUploadProgress(null);
     try {
-      for (const row of filled) {
-        const taskId = await createTask({
-          assigneeId: selectedEmployee.uid,
-          assigneeDisplayName: selectedEmployee.displayName ?? null,
-          createdBy: currentUser.uid,
-          createdByDisplayName: currentUser.displayName ?? null,
-          title: row.title.trim(),
-          description: row.description.trim(),
-          category: row.category,
-          priority: row.priority,
-          dueDate: row.dueDate ?? undefined,
-        });
-        for (const file of row.referenceFiles) {
-          setUploadProgress(0);
-          const result = await uploadTaskFile(file, taskId, (p) => setUploadProgress(p));
-          await addTaskAttachment(taskId, {
-            downloadUrl: result.downloadUrl,
-            fileName: result.fileName,
-            fileSize: result.fileSize,
-            fileType: result.fileType,
+      for (const assignee of assigneesForSubmit) {
+        for (const row of filled) {
+          const taskId = await createTask({
+            assigneeId: assignee.uid,
+            assigneeDisplayName: assignee.displayName ?? null,
+            createdBy: currentUser.uid,
+            createdByDisplayName: currentUser.displayName ?? null,
+            title: row.title.trim(),
+            description: row.description.trim(),
+            category: row.category,
+            priority: row.priority,
+            dueDate: row.dueDate ?? undefined,
+          });
+          for (const file of row.referenceFiles) {
+            setUploadProgress(0);
+            const result = await uploadTaskFile(file, taskId, (p) => setUploadProgress(p));
+            await addTaskAttachment(taskId, {
+              downloadUrl: result.downloadUrl,
+              fileName: result.fileName,
+              fileSize: result.fileSize,
+              fileType: result.fileType,
+            });
+          }
+          setUploadProgress(null);
+          await createNotification(assignee.uid, {
+            type: 'task_assigned',
+            taskId,
+            title: row.title.trim(),
           });
         }
-        setUploadProgress(null);
-        await createNotification(selectedEmployee.uid, {
-          type: 'task_assigned',
-          taskId,
-          title: row.title.trim(),
-        });
       }
+      const countPeople = assigneesForSubmit.length;
+      const countTasks = filled.length;
       setSubmitMessage({
         type: 'success',
-        text: `${selectedEmployee.displayName ?? '해당 직원'}에게 ${filled.length}건의 업무를 지시했습니다.`,
+        text: countPeople === 1
+          ? `${assigneesForSubmit[0].displayName ?? '해당 직원'}에게 ${countTasks}건의 업무를 지시했습니다.`
+          : `${countPeople}명에게 각 ${countTasks}건의 업무를 지시했습니다.`,
       });
       setDraftRows(Array.from({ length: DEFAULT_ROW_COUNT }, (_, i) => createEmptyRow(`row-${Date.now()}-${i}`)));
+      if (isJointMode) setJointAssignees([]);
     } catch (err) {
       setSubmitMessage({
         type: 'error',
@@ -354,7 +390,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
         ) : (
           /* 대시보드: 직원 그리드 또는 배치 지시 폼 + 전체 업무 테이블 */
           <>
-            {!selectedEmployee ? (
+            {!selectedEmployee && !isJointMode ? (
               /* 직원 선택 그리드 */
               <section className="mb-6">
                 <h2 className="text-lg font-semibold text-brand-dark mb-3">지시할 직원을 선택하세요</h2>
@@ -368,6 +404,18 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                   <p className="text-sm text-gray-500">역할이 일반인 사용자가 없습니다.</p>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                    <button
+                      type="button"
+                      onClick={handleEnterJointMode}
+                      className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-dashed border-brand-sub bg-brand-sub/5 hover:bg-brand-sub/10 text-brand-main transition-colors"
+                    >
+                      <span className="w-12 h-12 rounded-full bg-brand-light flex items-center justify-center text-brand-main">
+                        <Users size={24} />
+                      </span>
+                      <span className="text-sm font-medium text-center">
+                        공동 임무 지시
+                      </span>
+                    </button>
                     {users.map((u) => (
                       <button
                         key={u.uid}
@@ -387,10 +435,10 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                 )}
               </section>
             ) : (
-              /* 선택한 직원에게 배치 지시: 4행 테이블 */
+              /* 선택한 직원 또는 공동 임무 지시: 4행 테이블 */
               <section className="mb-6 bg-white border border-gray-200 rounded-xl overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <button
                       type="button"
                       onClick={handleBackToEmployeeList}
@@ -401,13 +449,106 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                       <span>목록</span>
                     </button>
                     <span className="font-semibold text-brand-dark text-base">
-                      새 업무 지시
-                      <span className="text-brand-main font-medium ml-1">
-                        ({selectedEmployee.displayName ?? selectedEmployee.uid.slice(0, 8)})
-                      </span>
+                      {isJointMode ? (
+                        <>
+                          공동 임무 지시
+                          <span className="text-brand-main font-medium ml-1">
+                            ({jointAssignees.length}명)
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          새 업무 지시
+                          <span className="text-brand-main font-medium ml-1">
+                            ({selectedEmployee!.displayName ?? selectedEmployee!.uid.slice(0, 8)})
+                          </span>
+                        </>
+                      )}
                     </span>
+                    {isJointMode && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAddJointModal(true)}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-brand-sub bg-brand-sub/10 text-brand-main text-sm font-medium hover:bg-brand-sub/20 transition-colors"
+                        aria-label="담당자 추가"
+                      >
+                        <Plus size={18} />
+                        <span>담당자 추가</span>
+                      </button>
+                    )}
                   </div>
+                  {isJointMode && jointAssignees.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2 w-full">
+                      {jointAssignees.map((u) => (
+                        <span
+                          key={u.uid}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 text-gray-800 text-xs"
+                        >
+                          {u.displayName ?? u.uid.slice(0, 8)}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveJointAssignee(u.uid)}
+                            className="p-0.5 text-gray-500 hover:text-red-600 rounded"
+                            aria-label="제거"
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
+                {showAddJointModal && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="담당자 선택"
+                  >
+                    <div className="bg-white rounded-xl shadow-lg max-w-md w-full max-h-[80vh] flex flex-col p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold text-brand-dark">담당자 추가</h3>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddJointModal(false)}
+                          className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg"
+                          aria-label="닫기"
+                        >
+                          <X size={20} />
+                        </button>
+                      </div>
+                      <div className="overflow-y-auto flex-1 space-y-1">
+                        {users
+                          .filter((u) => !jointAssignees.some((a) => a.uid === u.uid))
+                          .map((u) => (
+                            <button
+                              key={u.uid}
+                              type="button"
+                              onClick={() => handleAddJointAssignee(u)}
+                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-left"
+                            >
+                              <span className="w-8 h-8 rounded-full bg-brand-light flex items-center justify-center text-brand-main flex-shrink-0">
+                                <User size={16} />
+                              </span>
+                              <span className="text-sm font-medium text-gray-800">
+                                {u.displayName ?? u.uid.slice(0, 8)}
+                              </span>
+                            </button>
+                          ))}
+                        {users.filter((u) => !jointAssignees.some((a) => a.uid === u.uid)).length === 0 && (
+                          <p className="text-sm text-gray-500 py-4 text-center">추가할 수 있는 직원이 없습니다.</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddJointModal(false)}
+                        className="mt-3 w-full py-2 border border-gray-300 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50"
+                      >
+                        닫기
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <form onSubmit={handleBatchSubmit} className="p-4">
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm border-collapse">
@@ -536,8 +677,9 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                   <div className="flex gap-2 mt-4">
                     <button
                       type="submit"
-                      disabled={submitting}
+                      disabled={submitting || (isJointMode && jointAssignees.length === 0)}
                       className="bg-brand-main hover:bg-brand-main/90 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg font-medium flex items-center gap-2"
+                      title={isJointMode && jointAssignees.length === 0 ? '담당자 추가 버튼으로 지시할 사람을 선택하세요' : undefined}
                     >
                       {submitting ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                       지시 내리기
@@ -554,8 +696,8 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
               </section>
             )}
 
-            {/* 전체 업무 현황 — 직원 선택 후 지시 폼이 열려 있을 때는 숨김 */}
-            {!selectedEmployee && (
+            {/* 전체 업무 현황 — 직원 선택 또는 공동 지시 폼이 열려 있을 때는 숨김 */}
+            {!selectedEmployee && !isJointMode && (
               <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
                 <h2 className="text-lg font-semibold text-brand-dark px-4 py-3 border-b border-gray-200 bg-gray-50">
                   전체 업무 현황
@@ -838,11 +980,11 @@ function DashboardRow({
             <span className="text-gray-400 text-xs">대기 중</span>
           ) : (
             <>
-              <div className="flex items-center gap-1.5">
+              <div className="flex w-full gap-1.5">
                 <button
                   type="button"
                   onClick={onOpenDetail}
-                  className="text-xs font-medium px-3 py-1.5 rounded bg-brand-sub text-white hover:bg-brand-sub/90"
+                  className="flex-1 min-w-0 text-xs font-medium px-3 py-1.5 rounded bg-brand-sub text-white hover:bg-brand-sub/90"
                 >
                   내용확인
                 </button>
@@ -850,7 +992,7 @@ function DashboardRow({
                   type="button"
                   onClick={handleApprove}
                   disabled={saving}
-                  className="text-xs font-medium px-3 py-1.5 rounded bg-brand-main text-white hover:bg-brand-main/90 disabled:opacity-50"
+                  className="flex-1 min-w-0 text-xs font-medium px-3 py-1.5 rounded bg-brand-main text-white hover:bg-brand-main/90 disabled:opacity-50"
                 >
                   최종 승인
                 </button>

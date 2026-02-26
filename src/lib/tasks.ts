@@ -118,7 +118,7 @@ export async function approveTask(taskId: string): Promise<void> {
   });
 }
 
-/** 관리자 재검토: task 내용 수정 후 status → pending, 해당 assignee에게만 알림 */
+/** 관리자 재검토: task 내용 수정 후 status → revision, 해당 assignee에게만 알림 */
 export async function requestRevision(
   taskId: string,
   updates: { title?: string; description?: string; category?: TaskCategory; priority?: TaskPriority }
@@ -131,7 +131,7 @@ export async function requestRevision(
   const taskTitle = (updates.title !== undefined && updates.title.trim() !== '' ? updates.title.trim() : (data.title as string)) ?? '업무';
 
   await updateDoc(taskRef, {
-    status: 'pending',
+    status: 'revision',
     ...(updates.title !== undefined && updates.title.trim() !== '' && { title: updates.title.trim() }),
     ...(updates.description !== undefined && { description: updates.description }),
     ...(updates.category !== undefined && { category: updates.category }),
