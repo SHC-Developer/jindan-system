@@ -1,7 +1,13 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useChat } from './hooks/useChat';
+import { useToastContext } from './contexts/ToastContext';
+import { useNotifications } from './hooks/useNotifications';
+import { NotificationToastContainer } from './components/NotificationToast';
+import { WorkAssignAdminView } from './features/work-assign/WorkAssignAdminView';
+import { WorkAssignMyListView } from './features/work-assign/WorkAssignMyListView';
+import { TaskDetailPage } from './features/work-assign/TaskDetailPage';
 import { formatChatDateLabel, formatChatTime } from './lib/chat-format';
 import { downloadFileFromUrl } from './lib/download';
 import { formatFileSize, isImageFile } from './lib/storage';
@@ -67,22 +73,28 @@ const MIDDLE_MENUS: MiddleMenu[] = [
 
 // --- Components ---
 
+type ActiveSection = 'project' | 'work-assign';
+
 interface SidebarProps {
   selectedProject: Project;
   setSelectedProject: (p: Project) => void;
   selectedMenu: MiddleMenuId;
   setSelectedMenu: (m: MiddleMenuId) => void;
+  activeSection: ActiveSection;
+  setActiveSection: (s: ActiveSection) => void;
   user: { displayName: string | null; jobTitle: string | null; role: 'admin' | 'general' };
   onLogout: () => void;
 }
 
-const Sidebar = ({ 
-  selectedProject, 
-  setSelectedProject, 
-  selectedMenu, 
+const Sidebar = ({
+  selectedProject,
+  setSelectedProject,
+  selectedMenu,
   setSelectedMenu,
+  activeSection,
+  setActiveSection,
   user,
-  onLogout
+  onLogout,
 }: SidebarProps) => {
   const [isProjectsExpanded, setIsProjectsExpanded] = useState(true);
 
@@ -100,7 +112,7 @@ const Sidebar = ({
       <div className="flex-1 overflow-y-auto py-4">
         {/* Projects Section */}
         <div className="px-2 mb-2">
-          <button 
+          <button
             onClick={() => setIsProjectsExpanded(!isProjectsExpanded)}
             className="flex items-center justify-between w-full px-2 py-1 text-xs font-semibold text-gray-400 hover:text-white uppercase tracking-wider mb-1"
           >
@@ -110,7 +122,7 @@ const Sidebar = ({
 
           <AnimatePresence>
             {isProjectsExpanded && (
-              <motion.div 
+              <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
@@ -119,10 +131,13 @@ const Sidebar = ({
                 {PROJECTS.map((project) => (
                   <div key={project.id}>
                     <button
-                      onClick={() => setSelectedProject(project)}
+                      onClick={() => {
+                        setActiveSection('project');
+                        setSelectedProject(project);
+                      }}
                       className={`w-full text-left px-2 py-2 rounded-md flex items-center text-sm transition-colors ${
-                        selectedProject.id === project.id 
-                          ? 'bg-white/10 text-white font-medium' 
+                        selectedProject.id === project.id && activeSection === 'project'
+                          ? 'bg-white/10 text-white font-medium'
                           : 'hover:bg-white/5 text-gray-400'
                       }`}
                     >
@@ -131,7 +146,7 @@ const Sidebar = ({
                     </button>
 
                     {/* Middle Menus (Only shown for selected project) */}
-                    {selectedProject.id === project.id && (
+                    {selectedProject.id === project.id && activeSection === 'project' && (
                       <div className="ml-4 mt-1 mb-3 space-y-0.5 border-l border-gray-700 pl-2">
                         {MIDDLE_MENUS.map((menu) => (
                           <button
@@ -154,6 +169,21 @@ const Sidebar = ({
               </motion.div>
             )}
           </AnimatePresence>
+        </div>
+
+        {/* 업무 지시 (프로젝트와 별도 블록) */}
+        <div className="px-2 mt-4 pt-4 border-t border-gray-700/50">
+          <button
+            onClick={() => setActiveSection('work-assign')}
+            className={`w-full text-left px-2 py-2 rounded-md flex items-center text-sm transition-colors ${
+              activeSection === 'work-assign'
+                ? 'bg-brand-main text-white shadow-sm'
+                : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+            }`}
+          >
+            <CheckSquare size={16} className="mr-2 opacity-80" />
+            <span className="truncate">업무 지시</span>
+          </button>
         </div>
       </div>
 
@@ -699,14 +729,33 @@ const RightPanel = ({ selectedMenuData }: { selectedMenuData: MiddleMenu }) => {
   );
 };
 
+function NotificationListener() {
+  const { user } = useAuth();
+  const { addToast } = useToastContext();
+  useNotifications({
+    uid: user?.uid ?? null,
+    onNew: (n) => {
+      const message =
+        n.type === 'task_completed'
+          ? `${n.completedByDisplayName ?? '직원'}이(가) 업무를 완료했습니다.`
+          : '새 업무가 할당되었습니다.';
+      addToast({ title: n.title, message, taskId: n.taskId });
+    },
+  });
+  return null;
+}
+
 export default function App() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [selectedProject, setSelectedProject] = useState<Project>(PROJECTS[0]);
   const [selectedMenuId, setSelectedMenuId] = useState<MiddleMenuId>('field-survey');
   const [activeTab, setActiveTab] = useState<'chat' | 'automation'>('chat');
+  const [activeSection, setActiveSection] = useState<ActiveSection>('project');
 
-  const selectedMenuData = MIDDLE_MENUS.find(m => m.id === selectedMenuId) || MIDDLE_MENUS[0];
+  const selectedMenuData = MIDDLE_MENUS.find((m) => m.id === selectedMenuId) ?? MIDDLE_MENUS[0];
+  const isTaskDetailPage = /^\/task\/[^/]+$/.test(location.pathname);
 
   const handleLogout = async () => {
     await signOut();
@@ -715,16 +764,16 @@ export default function App() {
 
   if (!user) return null;
 
-  return (
-    <div className="flex h-screen w-full overflow-hidden font-sans bg-brand-light">
-      <Sidebar 
-        selectedProject={selectedProject} 
-        setSelectedProject={setSelectedProject}
-        selectedMenu={selectedMenuId}
-        setSelectedMenu={setSelectedMenuId}
-        user={user}
-        onLogout={handleLogout}
-      />
+  const mainContent = isTaskDetailPage ? (
+    <TaskDetailPage />
+  ) : activeSection === 'work-assign' ? (
+    user.role === 'admin' ? (
+      <WorkAssignAdminView currentUser={user} />
+    ) : (
+      <WorkAssignMyListView currentUser={user} />
+    )
+  ) : (
+    <>
       <MainContent
         selectedProject={selectedProject}
         selectedMenuData={selectedMenuData}
@@ -733,6 +782,24 @@ export default function App() {
         user={user}
       />
       <RightPanel selectedMenuData={selectedMenuData} />
+    </>
+  );
+
+  return (
+    <div className="flex h-screen w-full overflow-hidden font-sans bg-brand-light">
+      <NotificationListener />
+      <NotificationToastContainer />
+      <Sidebar
+        selectedProject={selectedProject}
+        setSelectedProject={setSelectedProject}
+        selectedMenu={selectedMenuId}
+        setSelectedMenu={setSelectedMenuId}
+        activeSection={activeSection}
+        setActiveSection={setActiveSection}
+        user={user}
+        onLogout={handleLogout}
+      />
+      <div className="flex flex-1 min-w-0 overflow-hidden">{mainContent}</div>
     </div>
   );
 }

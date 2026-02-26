@@ -5,7 +5,7 @@ import {
   type DocumentReference,
 } from 'firebase/firestore';
 import type { ChatMessagePayload } from '../types/chat';
-import { getDbInstance } from './firebase';
+import { getDbInstance, USERS_COLLECTION } from './firebase';
 
 const PROJECTS = 'projects';
 const SUBMENUS = 'subMenus';
@@ -51,3 +51,27 @@ export const FIRESTORE_CHAT = {
   SUBMENUS,
   MESSAGES,
 } as const;
+
+// --- 업무 지시 (전역) ---
+const TASKS = 'tasks';
+const NOTIFICATIONS = 'notifications';
+
+/** 전역 tasks 컬렉션 참조 */
+export function getTasksRef(): CollectionReference {
+  return collection(getDbInstance(), TASKS);
+}
+
+/** tasks/{taskId} 문서 참조 */
+export function getTaskRef(taskId: string): DocumentReference {
+  return doc(getDbInstance(), TASKS, taskId);
+}
+
+/** users/{uid}/notifications 서브컬렉션 참조 */
+export function getUserNotificationsRef(uid: string): CollectionReference {
+  return collection(getDbInstance(), USERS_COLLECTION, uid, NOTIFICATIONS);
+}
+
+/** users 컬렉션 참조 (직원 목록 등) */
+export function getUsersRef(): CollectionReference {
+  return collection(getDbInstance(), USERS_COLLECTION);
+}

@@ -4,7 +4,14 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import App from './App.tsx';
 import { LoginPage } from './features/login/LoginPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { ToastProvider } from './contexts/ToastContext';
 import './index.css';
+
+const AppWithToast = () => (
+  <ToastProvider>
+    <App />
+  </ToastProvider>
+);
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -15,7 +22,15 @@ createRoot(document.getElementById('root')!).render(
           path="/"
           element={
             <ProtectedRoute>
-              <App />
+              <AppWithToast />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/task/:taskId"
+          element={
+            <ProtectedRoute>
+              <AppWithToast />
             </ProtectedRoute>
           }
         />

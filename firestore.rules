@@ -1,10 +1,24 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 로그인한 사용자만 자신의 users 문서 읽기 (이름, 직급, 역할)
+    // 사용자: 로그인한 사용자만 읽기 (업무 지시 시 직원 목록용), 쓰기는 배포 스크립트만
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null;
       allow write: if false;
+    }
+
+    // 업무 지시: tasks 전역 컬렉션
+    match /tasks/{taskId} {
+      allow read, create: if request.auth != null;
+      allow update: if request.auth != null && resource.data.assigneeId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // 알림: 각 사용자 자신의 notifications 만 읽기/쓰기
+    match /users/{userId}/notifications/{notificationId} {
+      allow read, update: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null;
+      allow delete: if false;
     }
 
     // 채팅: 로그인한 사용자만 프로젝트/중메뉴/메시지 읽기·쓰기
