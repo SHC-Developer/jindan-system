@@ -27,6 +27,14 @@ createRoot(document.getElementById('root')!).render(
           }
         />
         <Route
+          path="/general-chat"
+          element={
+            <ProtectedRoute>
+              <AppWithToast />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/task/:taskId"
           element={
             <ProtectedRoute>

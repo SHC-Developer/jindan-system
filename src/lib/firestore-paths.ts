@@ -55,6 +55,14 @@ export function getMessageRef(
   return doc(getDbInstance(), PROJECTS, projectId, SUBMENUS, subMenuId, MESSAGES, messageId);
 }
 
+const CHANNEL_META = 'channelMeta';
+const PINNED_DOC_ID = 'pinned';
+
+/** 공지 고정 메시지 ID 목록 저장 문서 참조 (projects/.../subMenus/.../channelMeta/pinned) */
+export function getPinnedRef(projectId: string, subMenuId: string): DocumentReference {
+  return doc(getDbInstance(), PROJECTS, projectId, SUBMENUS, subMenuId, CHANNEL_META, PINNED_DOC_ID);
+}
+
 export const FIRESTORE_CHAT = {
   PROJECTS,
   SUBMENUS,

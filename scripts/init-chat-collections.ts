@@ -29,6 +29,10 @@ const SUBMENUS: { id: string; name: string }[] = [
   { id: 'material-test', name: '재료시험 작성 도구' },
 ];
 
+/** 공지사항/일반채팅용 프로젝트·중메뉴 (채팅 전용) */
+const GENERAL_NOTICE_PROJECT = { id: 'general-notice', name: '공지사항' };
+const GENERAL_CHAT_SUBMENU = { id: 'general-chat', name: '일반채팅' };
+
 async function main() {
   let key: ServiceAccount;
   try {
@@ -59,6 +63,24 @@ async function main() {
         console.log('OK: projects/%s/subMenus/%s', project.id, menu.id);
       }
     }
+
+    // 공지사항/일반채팅 경로 생성 (pinnedMessageIds: [] 초기값)
+    await db.collection('projects').doc(GENERAL_NOTICE_PROJECT.id).set(
+      { name: GENERAL_NOTICE_PROJECT.name },
+      { merge: true }
+    );
+    console.log('OK: projects/%s', GENERAL_NOTICE_PROJECT.id);
+    const generalChatRef = db
+      .collection('projects')
+      .doc(GENERAL_NOTICE_PROJECT.id)
+      .collection('subMenus')
+      .doc(GENERAL_CHAT_SUBMENU.id);
+    await generalChatRef.set({ name: GENERAL_CHAT_SUBMENU.name }, { merge: true });
+    console.log('OK: projects/%s/subMenus/%s', GENERAL_NOTICE_PROJECT.id, GENERAL_CHAT_SUBMENU.id);
+    const pinnedRef = generalChatRef.collection('channelMeta').doc('pinned');
+    await pinnedRef.set({ pinnedMessageIds: [] }, { merge: true });
+    console.log('OK: projects/%s/subMenus/%s/channelMeta/pinned', GENERAL_NOTICE_PROJECT.id, GENERAL_CHAT_SUBMENU.id);
+
     console.log('\n채팅 경로 초기화 완료. projects/{id}/subMenus/{id}/messages 에 메시지 전송 시 서브컬렉션이 생성됩니다.');
     process.exit(0);
   } catch (err) {
