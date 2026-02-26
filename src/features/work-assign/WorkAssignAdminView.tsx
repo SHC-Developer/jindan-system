@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useUserList } from '../../hooks/useUserList';
 import { useDashboardTasks } from '../../hooks/useDashboardTasks';
@@ -19,7 +20,7 @@ import type { AppUser } from '../../types/user';
 import type { Task, TaskCategory, TaskPriority } from '../../types/task';
 import { DueDateCell } from './DueDateCell';
 import { PriorityBadge } from './PriorityBadge';
-import { Loader2, Send, Database, LayoutDashboard, Plus, User, Users, Paperclip, Trash2, FileText, X } from 'lucide-react';
+import { Loader2, Send, Database, LayoutDashboard, Plus, User, Users, Paperclip, Trash2, FileText, X, Filter } from 'lucide-react';
 
 type TabId = 'dashboard' | 'database';
 
@@ -81,10 +82,92 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
   const referenceInputRef = React.useRef<HTMLInputElement>(null);
   const referenceRowKeyRef = React.useRef<string | null>(null);
   const dashboardFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [dashboardAssigneeFilter, setDashboardAssigneeFilter] = useState<Set<string> | null>(null);
+  const [databaseAssigneeFilter, setDatabaseAssigneeFilter] = useState<Set<string> | null>(null);
+  const [dashboardFilterOpen, setDashboardFilterOpen] = useState(false);
+  const [databaseFilterOpen, setDatabaseFilterOpen] = useState(false);
+  const dashboardFilterRef = useRef<HTMLDivElement>(null);
+  const databaseFilterRef = useRef<HTMLDivElement>(null);
+  const dashboardFilterDropdownRef = useRef<HTMLDivElement>(null);
+  const databaseFilterDropdownRef = useRef<HTMLDivElement>(null);
+  const [dashboardFilterPosition, setDashboardFilterPosition] = useState<{ top: number; left: number } | null>(null);
+  const [databaseFilterPosition, setDatabaseFilterPosition] = useState<{ top: number; left: number } | null>(null);
 
   const { users, loading: usersLoading, error: usersError } = useUserList();
   const { tasks: dashboardTasks, loading: dashboardLoading, error: dashboardError } = useDashboardTasks();
   const { tasks: approvedTasks, loading: approvedLoading, error: approvedError } = useApprovedTasks();
+
+  const uniqueDashboardAssignees = useMemo(() => {
+    const m = new Map<string, string>();
+    dashboardTasks.forEach((t) => {
+      if (!m.has(t.assigneeId)) m.set(t.assigneeId, t.assigneeDisplayName ?? t.assigneeId.slice(0, 8));
+    });
+    return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [dashboardTasks]);
+
+  const uniqueDatabaseAssignees = useMemo(() => {
+    const m = new Map<string, string>();
+    approvedTasks.forEach((t) => {
+      if (!m.has(t.assigneeId)) m.set(t.assigneeId, t.assigneeDisplayName ?? t.assigneeId.slice(0, 8));
+    });
+    return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [approvedTasks]);
+
+  const filteredDashboardTasks = useMemo(() => {
+    if (dashboardAssigneeFilter === null) return dashboardTasks;
+    return dashboardTasks.filter((t) => dashboardAssigneeFilter.has(t.assigneeId));
+  }, [dashboardTasks, dashboardAssigneeFilter]);
+
+  const filteredApprovedTasks = useMemo(() => {
+    if (databaseAssigneeFilter === null) return approvedTasks;
+    return approvedTasks.filter((t) => databaseAssigneeFilter.has(t.assigneeId));
+  }, [approvedTasks, databaseAssigneeFilter]);
+
+  const handleDashboardFilterToggle = (assigneeId: string) => {
+    const allIds = uniqueDashboardAssignees.map((a) => a.id);
+    let next: Set<string>;
+    if (dashboardAssigneeFilter === null) {
+      next = new Set(allIds);
+      next.delete(assigneeId);
+    } else {
+      next = new Set(dashboardAssigneeFilter);
+      if (next.has(assigneeId)) next.delete(assigneeId);
+      else next.add(assigneeId);
+    }
+    setDashboardAssigneeFilter(next.size === allIds.length ? null : next);
+  };
+
+  const handleDatabaseFilterToggle = (assigneeId: string) => {
+    const allIds = uniqueDatabaseAssignees.map((a) => a.id);
+    let next: Set<string>;
+    if (databaseAssigneeFilter === null) {
+      next = new Set(allIds);
+      next.delete(assigneeId);
+    } else {
+      next = new Set(databaseAssigneeFilter);
+      if (next.has(assigneeId)) next.delete(assigneeId);
+      else next.add(assigneeId);
+    }
+    setDatabaseAssigneeFilter(next.size === allIds.length ? null : next);
+  };
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        dashboardFilterOpen &&
+        dashboardFilterRef.current && !dashboardFilterRef.current.contains(target) &&
+        dashboardFilterDropdownRef.current && !dashboardFilterDropdownRef.current.contains(target)
+      ) setDashboardFilterOpen(false);
+      if (
+        databaseFilterOpen &&
+        databaseFilterRef.current && !databaseFilterRef.current.contains(target) &&
+        databaseFilterDropdownRef.current && !databaseFilterDropdownRef.current.contains(target)
+      ) setDatabaseFilterOpen(false);
+    };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [dashboardFilterOpen, databaseFilterOpen]);
 
   const handleSelectEmployee = (user: UserListItem) => {
     setSelectedEmployee(user);
@@ -322,14 +405,61 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                       <th className="text-left py-3 px-4 font-medium text-gray-700 w-28 whitespace-nowrap">마감일</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700 w-20 whitespace-nowrap">구분</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">업무 내용</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700 w-24 whitespace-nowrap">담당자</th>
+                      <th className="text-left py-3 px-2 font-medium text-gray-700 w-24 whitespace-nowrap">
+                        <div ref={databaseFilterRef} className="relative inline-flex items-center gap-1">
+                          담당자
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!databaseFilterOpen) {
+                                const r = databaseFilterRef.current?.getBoundingClientRect();
+                                setDatabaseFilterPosition(r ? { top: r.bottom + 4, left: r.left } : { top: 0, left: 0 });
+                              }
+                              setDatabaseFilterOpen((o) => !o);
+                            }}
+                            className={`p-0.5 rounded ${databaseAssigneeFilter !== null ? 'text-brand-main' : 'text-gray-400 hover:text-gray-600'}`}
+                            title="담당자 필터"
+                          >
+                            <Filter size={14} />
+                          </button>
+                          {databaseFilterOpen &&
+                            databaseFilterPosition &&
+                            createPortal(
+                              <div
+                                ref={databaseFilterDropdownRef}
+                                className="fixed z-[9999] min-w-[180px] bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-60 overflow-y-auto"
+                                style={{ top: databaseFilterPosition.top, left: databaseFilterPosition.left }}
+                              >
+                                <button
+                                  type="button"
+                                  className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                  onClick={() => { setDatabaseAssigneeFilter(null); setDatabaseFilterOpen(false); }}
+                                >
+                                  전체 보기
+                                </button>
+                                {uniqueDatabaseAssignees.map(({ id, name }) => (
+                                  <label key={id} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={databaseAssigneeFilter === null ? true : databaseAssigneeFilter.has(id)}
+                                      onChange={() => handleDatabaseFilterToggle(id)}
+                                    />
+                                    <span className="truncate">{name}</span>
+                                  </label>
+                                ))}
+                              </div>,
+                              document.body
+                            )}
+                        </div>
+                      </th>
                       <th className="text-left py-3 px-2 font-medium text-gray-700 w-44 whitespace-nowrap">승인 일시</th>
                       <th className="text-left py-3 px-2 font-medium text-gray-700 w-36 whitespace-nowrap">첨부파일 (승인 시)</th>
                       <th className="py-3 px-1 text-center font-medium text-gray-700 w-10"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {approvedTasks.map((t) => (
+                    {filteredApprovedTasks.map((t) => (
                       <tr key={t.id} className="border-b border-gray-100 last:border-0">
                         <td className="py-3 px-4 text-gray-600 whitespace-nowrap min-w-[7rem]">
                           {t.dueDate ? new Date(t.dueDate).toLocaleDateString('ko-KR') : '-'}
@@ -407,7 +537,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                         <Users size={24} />
                       </span>
                       <span className="text-sm font-medium text-center">
-                        공동 임무 지시
+                        공동 업무 지시
                       </span>
                     </button>
                     {users.map((u) => (
@@ -715,7 +845,54 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                         <thead>
                           <tr className="bg-gray-50 border-b border-gray-200">
                             <th className="py-3 px-4 text-left font-medium text-gray-700 w-28"># 마감일</th>
-                            <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">담당자</th>
+                            <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">
+                              <div ref={dashboardFilterRef} className="relative inline-flex items-center gap-1">
+                                담당자
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!dashboardFilterOpen) {
+                                      const r = dashboardFilterRef.current?.getBoundingClientRect();
+                                      setDashboardFilterPosition(r ? { top: r.bottom + 4, left: r.left } : { top: 0, left: 0 });
+                                    }
+                                    setDashboardFilterOpen((o) => !o);
+                                  }}
+                                  className={`p-0.5 rounded ${dashboardAssigneeFilter !== null ? 'text-brand-main' : 'text-gray-400 hover:text-gray-600'}`}
+                                  title="담당자 필터"
+                                >
+                                  <Filter size={14} />
+                                </button>
+                                {dashboardFilterOpen &&
+                                  dashboardFilterPosition &&
+                                  createPortal(
+                                    <div
+                                      ref={dashboardFilterDropdownRef}
+                                      className="fixed z-[9999] min-w-[180px] bg-white border border-gray-200 rounded-lg shadow-lg py-1 max-h-60 overflow-y-auto"
+                                      style={{ top: dashboardFilterPosition.top, left: dashboardFilterPosition.left }}
+                                    >
+                                      <button
+                                        type="button"
+                                        className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                                        onClick={() => { setDashboardAssigneeFilter(null); setDashboardFilterOpen(false); }}
+                                      >
+                                        전체 보기
+                                      </button>
+                                      {uniqueDashboardAssignees.map(({ id, name }) => (
+                                        <label key={id} className="flex items-center gap-2 px-3 py-1.5 text-sm hover:bg-gray-50 cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={dashboardAssigneeFilter === null ? true : dashboardAssigneeFilter.has(id)}
+                                            onChange={() => handleDashboardFilterToggle(id)}
+                                          />
+                                          <span className="truncate">{name}</span>
+                                        </label>
+                                      ))}
+                                    </div>,
+                                    document.body
+                                  )}
+                              </div>
+                            </th>
                             <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">구분</th>
                             <th className="py-3 px-4 text-left font-medium text-gray-700">업무 내용</th>
                             <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">우선순위</th>
@@ -724,7 +901,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                           </tr>
                         </thead>
                         <tbody>
-                          {dashboardTasks.map((task) => (
+                          {filteredDashboardTasks.map((task) => (
                             <DashboardRow
                               key={task.id}
                               task={task}
