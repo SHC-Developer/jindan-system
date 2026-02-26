@@ -46,6 +46,15 @@ export function getMessagesRef(
   ) as CollectionReference<ChatMessagePayload>;
 }
 
+/** projects/{projectId}/subMenus/{subMenuId}/messages/{messageId} 문서 참조 */
+export function getMessageRef(
+  projectId: string,
+  subMenuId: string,
+  messageId: string
+): DocumentReference {
+  return doc(getDbInstance(), PROJECTS, projectId, SUBMENUS, subMenuId, MESSAGES, messageId);
+}
+
 export const FIRESTORE_CHAT = {
   PROJECTS,
   SUBMENUS,

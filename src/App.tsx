@@ -34,6 +34,7 @@ import {
   LogOut,
   Download,
   Loader2,
+  Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -309,15 +310,17 @@ const MainContent = ({
   setActiveTab: (t: 'chat' | 'automation') => void;
   user: AppUser;
 }) => {
-  const { messages, sendMessage, sendFileMessage, loading, error, clearError } = useChat({
-    projectId: selectedProject.id,
-    subMenuId: selectedMenuData.id,
-    currentUser: user,
-  });
+  const { messages, sendMessage, sendFileMessage, deleteMessage, canDeleteMessage, loading, error, clearError } =
+    useChat({
+      projectId: selectedProject.id,
+      subMenuId: selectedMenuData.id,
+      currentUser: user,
+    });
 
   const [inputText, setInputText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -401,6 +404,23 @@ const MainContent = ({
       if (file) handleFileUpload(file);
     },
     [handleFileUpload]
+  );
+
+  const handleDeleteMessage = useCallback(
+    async (msg: ChatMessage) => {
+      if (!canDeleteMessage(msg, user)) return;
+      if (!window.confirm('이 메시지를 삭제할까요?')) return;
+      setDeletingMessageId(msg.id);
+      clearError();
+      try {
+        await deleteMessage(msg.id, msg);
+      } catch {
+        // error already set in hook
+      } finally {
+        setDeletingMessageId(null);
+      }
+    },
+    [canDeleteMessage, user, deleteMessage, clearError]
   );
 
   const uploading = uploadProgress !== null;
@@ -545,8 +565,10 @@ const MainContent = ({
                       const isMe = msg.senderId === user.uid;
                       const displayName = [msg.senderDisplayName, msg.senderJobTitle].filter(Boolean).join(' ');
                       const timeStr = formatChatTime(msg.createdAt);
+                      const showDelete = canDeleteMessage(msg, user);
+                      const isDeleting = deletingMessageId === msg.id;
                       return (
-                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
                           {!isMe && (
                             <div className="w-9 h-9 rounded-full mr-3 mt-1 bg-brand-sub/20 flex items-center justify-center text-brand-dark text-sm font-semibold flex-shrink-0">
                               {(msg.senderDisplayName?.[0] ?? '?')}
@@ -559,15 +581,33 @@ const MainContent = ({
                                 <span className="text-xs text-gray-400">{timeStr}</span>
                               </div>
                             )}
-                            <div
-                              className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                                isMe
-                                  ? 'bg-brand-main text-white rounded-tr-none'
-                                  : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
-                              }`}
-                            >
-                              {msg.text && <p>{msg.text}</p>}
-                              <FileAttachment msg={msg} isMe={isMe} />
+                            <div className="flex items-end gap-1">
+                              <div
+                                className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                                  isMe
+                                    ? 'bg-brand-main text-white rounded-tr-none'
+                                    : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
+                                }`}
+                              >
+                                {msg.text && <p>{msg.text}</p>}
+                                <FileAttachment msg={msg} isMe={isMe} />
+                              </div>
+                              {showDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteMessage(msg)}
+                                  disabled={isDeleting}
+                                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity disabled:opacity-50"
+                                  title="메시지 삭제"
+                                  aria-label="메시지 삭제"
+                                >
+                                  {isDeleting ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                  ) : (
+                                    <Trash2 size={14} />
+                                  )}
+                                </button>
+                              )}
                             </div>
                             {isMe && <span className="text-xs text-gray-400 mt-1 mr-1">{timeStr}</span>}
                           </div>

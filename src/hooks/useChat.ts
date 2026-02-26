@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { onSnapshot, addDoc, serverTimestamp, orderBy, query } from 'firebase/firestore';
-import type { Unsubscribe } from 'firebase/firestore';
-import { getMessagesRef } from '../lib/firestore-paths';
-import { uploadChatFile, type UploadProgressCallback } from '../lib/storage';
+import { onSnapshot, addDoc, deleteDoc, serverTimestamp, orderBy, query } from 'firebase/firestore';
+import { getMessagesRef, getMessageRef } from '../lib/firestore-paths';
+import { uploadChatFile, deleteTaskFileByUrl, type UploadProgressCallback } from '../lib/storage';
 import type { ChatMessage } from '../types/chat';
 import type { AppUser } from '../types/user';
 
@@ -16,9 +15,18 @@ interface UseChatResult {
   messages: ChatMessage[];
   sendMessage: (text: string) => Promise<void>;
   sendFileMessage: (file: File, text?: string, onProgress?: UploadProgressCallback) => Promise<void>;
+  deleteMessage: (messageId: string, msg: ChatMessage) => Promise<void>;
+  canDeleteMessage: (msg: ChatMessage, user: AppUser | null) => boolean;
   loading: boolean;
   error: string | null;
   clearError: () => void;
+}
+
+/** 관리자는 모든 메시지, 일반 사용자는 본인 발신 메시지만 삭제 가능 */
+export function canDeleteMessage(msg: ChatMessage, user: AppUser | null): boolean {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  return msg.senderId === user.uid;
 }
 
 export function useChat({
@@ -133,5 +141,30 @@ export function useChat({
     [projectId, subMenuId, currentUser]
   );
 
-  return { messages, sendMessage, sendFileMessage, loading, error, clearError };
+  const deleteMessage = useCallback(
+    async (messageId: string, msg: ChatMessage) => {
+      if (!currentUser) return;
+      if (!canDeleteMessage(msg, currentUser)) {
+        setError('이 메시지를 삭제할 권한이 없습니다.');
+        return;
+      }
+      try {
+        if (msg.fileUrl) {
+          try {
+            await deleteTaskFileByUrl(msg.fileUrl);
+          } catch {
+            // Storage 삭제 실패해도 Firestore 메시지는 삭제 진행
+          }
+        }
+        const messageRef = getMessageRef(projectId, subMenuId, messageId);
+        await deleteDoc(messageRef);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : '메시지 삭제에 실패했습니다.');
+        throw err;
+      }
+    },
+    [projectId, subMenuId, currentUser]
+  );
+
+  return { messages, sendMessage, sendFileMessage, deleteMessage, canDeleteMessage, loading, error, clearError };
 }
