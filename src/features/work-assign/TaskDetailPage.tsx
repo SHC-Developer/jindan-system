@@ -140,7 +140,7 @@ export function TaskDetailPage() {
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-lg font-semibold text-brand-dark truncate flex-1">{task.title}</h1>
+        <h1 className="text-lg font-semibold text-brand-dark break-words flex-1 min-w-0">{task.title}</h1>
           </header>
         </div>
 
@@ -164,9 +164,9 @@ export function TaskDetailPage() {
               <dd className="font-medium text-gray-900">{task.priority}</dd>
             </div>
             {task.description && (
-              <div>
+              <div className="min-w-0">
                 <dt className="text-gray-500">상세 내용</dt>
-                <dd className="text-gray-900 whitespace-pre-wrap mt-1">{task.description}</dd>
+                <dd className="text-gray-900 whitespace-pre-wrap break-words mt-1">{task.description}</dd>
               </div>
             )}
           </dl>

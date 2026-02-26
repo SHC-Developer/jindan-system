@@ -316,12 +316,12 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
               <p className="text-sm text-gray-500">승인된 업무가 없습니다.</p>
             ) : (
               <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
-                <table className="w-full text-sm min-w-[800px]">
+                <table className="w-full text-sm min-w-[800px] table-fixed">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[7rem] whitespace-nowrap">마감일</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[4rem] whitespace-nowrap">구분</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">업무 내용</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-28 whitespace-nowrap">마감일</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-20 whitespace-nowrap">구분</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-48">업무 내용</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[5rem] whitespace-nowrap">우선순위</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[5rem] whitespace-nowrap">담당자</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[11rem] whitespace-nowrap">승인 일시</th>
@@ -336,7 +336,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                           {t.dueDate ? new Date(t.dueDate).toLocaleDateString('ko-KR') : '-'}
                         </td>
                         <td className="py-3 px-4 text-gray-800 whitespace-nowrap">{t.category}</td>
-                        <td className="py-3 px-4 text-gray-800">{t.title}</td>
+                        <td className="py-3 px-4 text-gray-800 min-w-0 break-words">{t.title}</td>
                         <td className="py-3 px-4 min-w-[5rem]">
                           <span className="whitespace-nowrap inline-block">
                             <PriorityBadge priority={t.priority} />
