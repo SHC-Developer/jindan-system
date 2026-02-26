@@ -42,7 +42,8 @@ export function useChat({
     const messagesRef = getMessagesRef(projectId, subMenuId);
     const q = query(messagesRef, orderBy('createdAt', 'asc'));
 
-    const unsubscribe: Unsubscribe = onSnapshot(
+    let unsub: (() => void) | null = null;
+    unsub = onSnapshot(
       q,
       (snapshot) => {
         const list: ChatMessage[] = snapshot.docs.map((doc) => {
@@ -67,10 +68,16 @@ export function useChat({
       (err) => {
         setError(err instanceof Error ? err.message : '메시지를 불러오지 못했습니다.');
         setLoading(false);
+        if (unsub) {
+          unsub();
+          unsub = null;
+        }
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      if (unsub) unsub();
+    };
   }, [projectId, subMenuId]);
 
   const sendMessage = useCallback(

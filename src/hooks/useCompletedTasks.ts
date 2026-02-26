@@ -39,7 +39,8 @@ export function useCompletedTasks(): {
       orderBy('completedAt', 'desc')
     );
 
-    const unsubscribe: Unsubscribe = onSnapshot(
+    let unsub: (() => void) | null = null;
+    unsub = onSnapshot(
       q,
       (snapshot) => {
         const list = snapshot.docs.map((d) => docToTask(d.id, d.data()));
@@ -49,10 +50,16 @@ export function useCompletedTasks(): {
       (err) => {
         setError(err instanceof Error ? err.message : '완료 현황을 불러오지 못했습니다.');
         setLoading(false);
+        if (unsub) {
+          unsub();
+          unsub = null;
+        }
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      if (unsub) unsub();
+    };
   }, []);
 
   return { tasks, loading, error };

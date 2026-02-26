@@ -45,7 +45,8 @@ export function useTaskList(assigneeId: string | null): {
       orderBy('createdAt', 'desc')
     );
 
-    const unsubscribe: Unsubscribe = onSnapshot(
+    let unsub: (() => void) | null = null;
+    unsub = onSnapshot(
       q,
       (snapshot) => {
         const list = snapshot.docs.map((d) => docToTask(d.id, d.data()));
@@ -55,10 +56,16 @@ export function useTaskList(assigneeId: string | null): {
       (err) => {
         setError(err instanceof Error ? err.message : '업무 목록을 불러오지 못했습니다.');
         setLoading(false);
+        if (unsub) {
+          unsub();
+          unsub = null;
+        }
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      if (unsub) unsub();
+    };
   }, [assigneeId]);
 
   return { tasks, loading, error };

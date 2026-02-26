@@ -39,7 +39,8 @@ export function useTaskDetail(taskId: string | null): {
     }
 
     const taskRef = getTaskRef(taskId);
-    const unsubscribe: Unsubscribe = onSnapshot(
+    let unsub: (() => void) | null = null;
+    unsub = onSnapshot(
       taskRef,
       (snapshot) => {
         if (snapshot.exists()) {
@@ -52,10 +53,16 @@ export function useTaskDetail(taskId: string | null): {
       (err) => {
         setError(err instanceof Error ? err.message : '업무를 불러오지 못했습니다.');
         setLoading(false);
+        if (unsub) {
+          unsub();
+          unsub = null;
+        }
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      if (unsub) unsub();
+    };
   }, [taskId]);
 
   return { task, loading, error };

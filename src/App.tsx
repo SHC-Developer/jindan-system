@@ -101,11 +101,13 @@ const Sidebar = ({
   return (
     <div className="w-64 bg-brand-dark text-gray-300 flex flex-col h-full flex-shrink-0">
       {/* Logo Area */}
-      <div className="h-14 flex items-center px-4 border-b border-gray-700/50">
-        <div className="w-6 h-6 bg-brand-sub rounded-md mr-2 flex items-center justify-center text-white font-bold text-xs">
+      <div className="h-14 flex items-center px-4 border-b border-gray-700/50 min-w-0" lang="ko">
+        <div className="w-6 h-6 bg-brand-sub rounded-md mr-2 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
           A
         </div>
-        <span className="font-bold text-white tracking-tight">진단 자동화 플랫폼</span>
+        <span className="font-bold text-white tracking-tight whitespace-nowrap flex-shrink-0" title="진단 자동화 플랫폼">
+          진단 자동화 플랫폼
+        </span>
       </div>
 
       {/* Scrollable Area */}

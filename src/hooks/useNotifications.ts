@@ -29,6 +29,8 @@ export function useNotifications({ uid, onNew }: UseNotificationsOptions): {
   const [notifications, setNotifications] = useState<TaskNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const notifiedIdsRef = useRef<Set<string>>(new Set());
+  const onNewRef = useRef(onNew);
+  onNewRef.current = onNew;
 
   useEffect(() => {
     if (!uid) {
@@ -40,7 +42,8 @@ export function useNotifications({ uid, onNew }: UseNotificationsOptions): {
     const notificationsRef = getUserNotificationsRef(uid);
     const q = query(notificationsRef, orderBy('createdAt', 'desc'));
 
-    const unsubscribe: Unsubscribe = onSnapshot(
+    let unsub: (() => void) | null = null;
+    unsub = onSnapshot(
       q,
       (snapshot) => {
         const list: TaskNotification[] = snapshot.docs.map((d) =>
@@ -57,7 +60,7 @@ export function useNotifications({ uid, onNew }: UseNotificationsOptions): {
 
           notifiedIdsRef.current.add(notificationId);
           const notification = docToNotification(notificationId, data);
-          onNew?.(notification);
+          onNewRef.current?.(notification);
 
           updateDoc(d.ref, { read: true }).catch(() => {
             notifiedIdsRef.current.delete(notificationId);
@@ -67,11 +70,17 @@ export function useNotifications({ uid, onNew }: UseNotificationsOptions): {
       (err) => {
         console.error('useNotifications error', err);
         setLoading(false);
+        if (unsub) {
+          unsub();
+          unsub = null;
+        }
       }
     );
 
-    return () => unsubscribe();
-  }, [uid, onNew]);
+    return () => {
+      if (unsub) unsub();
+    };
+  }, [uid]);
 
   return { notifications, loading };
 }

@@ -1,6 +1,6 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getFirestore, enableIndexedDbPersistence, type Firestore } from 'firebase/firestore';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import type { UserRole } from '../types/user';
 
@@ -34,6 +34,11 @@ function initFirebase(): void {
   auth = getAuth(app);
   db = getFirestore(app);
   storage = getStorage(app);
+  enableIndexedDbPersistence(db).catch((err: unknown) => {
+    const code = err && typeof err === 'object' && 'code' in err ? (err as { code: string }).code : '';
+    if (code === 'failed-precondition' || code === 'unimplemented') return;
+    console.warn('Firestore persistence:', err);
+  });
 }
 
 export function getAuthInstance(): Auth {
