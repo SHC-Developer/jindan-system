@@ -184,7 +184,9 @@ const Sidebar = ({
             }`}
           >
             <CheckSquare size={16} className="mr-2 opacity-80" />
-            <span className="truncate">업무 지시</span>
+            <span className="truncate">
+              {user.role === 'admin' ? '업무 지시하기(현황)' : '업무 지시사항 확인'}
+            </span>
           </button>
         </div>
       </div>

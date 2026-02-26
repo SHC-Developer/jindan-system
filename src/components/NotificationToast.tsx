@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToastContext } from '../contexts/ToastContext';
 import type { ToastItem } from '../types/toast';
+
+const TOAST_DURATION_MS = 5000;
+const FADE_OUT_MS = 400;
 
 function ToastItemView({
   item,
@@ -13,9 +16,24 @@ function ToastItemView({
   onClick: () => void;
   key?: string;
 }) {
+  const [fading, setFading] = useState(false);
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
+
+  useEffect(() => {
+    const startFade = setTimeout(() => setFading(true), TOAST_DURATION_MS);
+    const remove = setTimeout(() => onDismissRef.current(), TOAST_DURATION_MS + FADE_OUT_MS);
+    return () => {
+      clearTimeout(startFade);
+      clearTimeout(remove);
+    };
+  }, [item.id]);
+
   return (
     <div
-      className="rounded-xl shadow-lg border border-gray-200 bg-white p-4 min-w-[280px] max-w-[360px] cursor-pointer hover:bg-gray-50 transition-colors border-l-4 border-l-brand-main"
+      className={`rounded-xl shadow-lg border border-gray-200 bg-white p-4 min-w-[280px] max-w-[360px] cursor-pointer hover:bg-gray-50 border-l-4 border-l-brand-main transition-opacity duration-300 ${
+        fading ? 'opacity-0' : 'opacity-100'
+      }`}
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -62,10 +80,10 @@ export function NotificationToastContainer() {
 
   return (
     <div
-      className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 items-end pointer-events-none"
+      className="fixed bottom-6 right-6 z-50 flex flex-col-reverse gap-3 items-end pointer-events-none"
       aria-live="polite"
     >
-      <div className="flex flex-col gap-3 items-end pointer-events-auto">
+      <div className="flex flex-col-reverse gap-3 items-end pointer-events-auto">
         {toasts.map((item) => (
           <ToastItemView
             key={item.id}

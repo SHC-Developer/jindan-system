@@ -390,17 +390,21 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
               /* 선택한 직원에게 배치 지시: 4행 테이블 */
               <section className="mb-6 bg-white border border-gray-200 rounded-xl overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <button
                       type="button"
                       onClick={handleBackToEmployeeList}
-                      className="p-1.5 text-gray-500 hover:bg-gray-200 rounded-lg"
-                      aria-label="목록으로"
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 hover:border-gray-400 transition-colors"
+                      aria-label="직원 목록으로 돌아가기"
                     >
-                      ←
+                      <span aria-hidden>←</span>
+                      <span>목록</span>
                     </button>
-                    <span className="font-medium text-brand-dark">
-                      새 업무 지시 — {selectedEmployee.displayName ?? selectedEmployee.uid.slice(0, 8)}
+                    <span className="font-semibold text-brand-dark text-base">
+                      새 업무 지시
+                      <span className="text-brand-main font-medium ml-1">
+                        ({selectedEmployee.displayName ?? selectedEmployee.uid.slice(0, 8)})
+                      </span>
                     </span>
                   </div>
                 </div>
