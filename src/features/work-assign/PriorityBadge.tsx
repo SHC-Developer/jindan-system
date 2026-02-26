@@ -9,7 +9,7 @@ const PRIORITY_STYLES: Record<TaskPriority, string> = {
 export function PriorityBadge({ priority }: { priority: TaskPriority }) {
   return (
     <span
-      className={`inline-flex px-3 py-1.5 text-xs font-medium rounded-lg ${PRIORITY_STYLES[priority] ?? 'bg-gray-100 text-gray-700'}`}
+      className={`inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap ${PRIORITY_STYLES[priority] ?? 'bg-gray-100 text-gray-700'}`}
     >
       {priority}
     </span>

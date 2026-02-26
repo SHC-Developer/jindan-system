@@ -35,5 +35,6 @@ export function dataToTask(id: string, data: Record<string, unknown>): Task {
     completedAt: (data.completedAt as number | null) ?? null,
     approvedAt: (data.approvedAt as number | null) ?? null,
     attachments,
+    submissionNote: (data.submissionNote as string) ?? null,
   };
 }

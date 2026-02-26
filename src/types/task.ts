@@ -27,6 +27,8 @@ export interface Task {
   completedAt: number | null;
   approvedAt: number | null;
   attachments: TaskAttachment[];
+  /** 직원이 완료 제출 시 작성한 업무 처리 설명 */
+  submissionNote: string | null;
 }
 
 export type NotificationType = 'task_assigned' | 'task_completed' | 'task_revision';

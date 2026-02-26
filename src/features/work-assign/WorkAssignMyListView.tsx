@@ -46,12 +46,14 @@ export function WorkAssignMyListView({ currentUser }: WorkAssignMyListViewProps)
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-brand-light/30">
       <div className="max-w-6xl mx-auto w-full h-full flex flex-col min-h-0 overflow-hidden">
-        <div className="p-4 border-b border-gray-200 bg-white flex-shrink-0">
-        <h2 className="text-lg font-semibold text-brand-dark">내 업무</h2>
-        <p className="text-sm text-gray-500 mt-0.5">행을 클릭하면 상세 내용을 확인하고, 파일 첨부 후 완료 제출할 수 있습니다.</p>
-      </div>
-      <div className="flex-1 overflow-auto">
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden m-4">
+        <div className="flex-shrink-0 px-6 pt-6">
+          <div className="py-4 px-4 bg-white border border-gray-200 rounded-t-xl">
+            <h2 className="text-lg font-semibold text-brand-dark">내 업무</h2>
+            <p className="text-sm text-gray-500 mt-0.5">행을 클릭하면 상세 내용을 확인하고, 파일 첨부 후 완료 제출할 수 있습니다.</p>
+          </div>
+        </div>
+      <div className="flex-1 overflow-auto px-6 pb-6">
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">

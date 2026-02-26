@@ -5,6 +5,7 @@ import {
   getDocs,
   query,
   where,
+  deleteDoc,
 } from 'firebase/firestore';
 import { getTasksRef, getTaskRef, getUserNotificationsRef, getUsersRef } from './firestore-paths';
 import type { Task, TaskCategory, TaskPriority } from '../types/task';
@@ -66,15 +67,17 @@ export async function createNotification(
   });
 }
 
-/** 직원이 완료 제출 시: status → submitted, 관리자에게 알림 */
+/** 직원이 완료 제출 시: status → submitted, submissionNote 저장, 관리자에게 알림 */
 export async function submitTask(
   taskId: string,
-  completedByDisplayName: string | null
+  completedByDisplayName: string | null,
+  submissionNote?: string | null
 ): Promise<void> {
   const taskRef = getTaskRef(taskId);
   await updateDoc(taskRef, {
     status: 'submitted',
     completedAt: Date.now(),
+    ...(submissionNote !== undefined && { submissionNote: submissionNote == null ? null : (typeof submissionNote === 'string' ? submissionNote.trim() || null : null) }),
   });
 
   const taskSnap = await getDoc(getTaskRef(taskId));
@@ -107,17 +110,18 @@ export async function approveTask(taskId: string): Promise<void> {
 /** 관리자 재검토: task 내용 수정 후 status → pending, 해당 assignee에게만 알림 */
 export async function requestRevision(
   taskId: string,
-  updates: { description?: string; category?: TaskCategory; priority?: TaskPriority }
+  updates: { title?: string; description?: string; category?: TaskCategory; priority?: TaskPriority }
 ): Promise<void> {
   const taskRef = getTaskRef(taskId);
   const snap = await getDoc(taskRef);
   if (!snap.exists()) return;
   const data = snap.data();
   const assigneeId = data.assigneeId as string;
-  const taskTitle = (data.title as string) ?? '업무';
+  const taskTitle = (updates.title !== undefined && updates.title.trim() !== '' ? updates.title.trim() : (data.title as string)) ?? '업무';
 
   await updateDoc(taskRef, {
     status: 'pending',
+    ...(updates.title !== undefined && updates.title.trim() !== '' && { title: updates.title.trim() }),
     ...(updates.description !== undefined && { description: updates.description }),
     ...(updates.category !== undefined && { category: updates.category }),
     ...(updates.priority !== undefined && { priority: updates.priority }),
@@ -128,6 +132,12 @@ export async function requestRevision(
     taskId,
     title: taskTitle,
   });
+}
+
+/** 업무 삭제 (관리자·지시자만). 삭제 시 일반 사용자 목록에서도 제거됨 */
+export async function deleteTask(taskId: string): Promise<void> {
+  const taskRef = getTaskRef(taskId);
+  await deleteDoc(taskRef);
 }
 
 /** 관리자: task 필드 수정 (마감일, 카테고리, 업무내용, 우선순위) */

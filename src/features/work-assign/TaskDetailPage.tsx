@@ -18,6 +18,7 @@ export function TaskDetailPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [completing, setCompleting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [submissionNote, setSubmissionNote] = useState('');
 
   const isAssignee = user && task && task.assigneeId === user.uid;
   const canEdit = isAssignee && (task?.status === 'pending' || task?.status === 'revision');
@@ -61,7 +62,7 @@ export function TaskDetailPage() {
     setCompleting(true);
     setMessage(null);
     try {
-      await submitTask(taskId, user.displayName ?? null);
+      await submitTask(taskId, user.displayName ?? null, submissionNote || null);
       setShowSuccessPopup(true);
     } catch (err) {
       setMessage({
@@ -112,7 +113,8 @@ export function TaskDetailPage() {
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-brand-light/30">
       <div className="max-w-6xl mx-auto w-full h-full flex flex-col min-h-0 overflow-hidden">
-        <header className="flex-shrink-0 flex items-center gap-3 p-4 bg-white border-b border-gray-200">
+        <div className="flex-shrink-0 px-6 pt-6">
+          <header className="flex items-center gap-3 py-4 px-4 bg-white border border-gray-200 rounded-t-xl">
         <button
           type="button"
           onClick={() => navigate('/')}
@@ -122,9 +124,10 @@ export function TaskDetailPage() {
           <ArrowLeft size={20} />
         </button>
         <h1 className="text-lg font-semibold text-brand-dark truncate flex-1">{task.title}</h1>
-      </header>
+          </header>
+        </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6">
         <section className="bg-white rounded-xl border border-gray-200 p-4">
           <dl className="space-y-2 text-sm">
             <div>
@@ -151,6 +154,27 @@ export function TaskDetailPage() {
             )}
           </dl>
         </section>
+
+        {canEdit && (
+          <section className="bg-white rounded-xl border border-gray-200 p-4">
+            <h3 className="font-medium text-gray-800 mb-2">업무 처리 설명 (선택)</h3>
+            <p className="text-sm text-gray-500 mb-2">어떤 식으로 업무를 처리했는지 간단히 적어 주세요.</p>
+            <textarea
+              value={submissionNote}
+              onChange={(e) => setSubmissionNote(e.target.value)}
+              placeholder="업무 처리 내용을 입력하세요."
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none"
+            />
+          </section>
+        )}
+
+        {(task.submissionNote != null && task.submissionNote !== '') && (
+          <section className="bg-white rounded-xl border border-gray-200 p-4">
+            <h3 className="font-medium text-gray-800 mb-2">업무 처리 설명</h3>
+            <p className="text-sm text-gray-900 whitespace-pre-wrap">{task.submissionNote}</p>
+          </section>
+        )}
 
         <section className="bg-white rounded-xl border border-gray-200 p-4">
           <h3 className="font-medium text-gray-800 flex items-center gap-2 mb-3">

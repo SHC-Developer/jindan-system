@@ -9,12 +9,15 @@ import {
   updateTask,
   approveTask,
   requestRevision,
+  addTaskAttachment,
+  deleteTask,
 } from '../../lib/tasks';
+import { uploadTaskFile } from '../../lib/storage';
 import type { AppUser } from '../../types/user';
 import type { Task, TaskCategory, TaskPriority } from '../../types/task';
 import { DueDateCell } from './DueDateCell';
 import { PriorityBadge } from './PriorityBadge';
-import { Loader2, Send, CheckCircle, Database, LayoutDashboard, Plus, User } from 'lucide-react';
+import { Loader2, Send, Database, LayoutDashboard, Plus, User, Paperclip, Trash2 } from 'lucide-react';
 
 type TabId = 'dashboard' | 'database';
 
@@ -30,6 +33,7 @@ interface DraftTaskRow {
   title: string;
   description: string;
   priority: TaskPriority;
+  referenceFiles: File[];
 }
 
 function createEmptyRow(key: string): DraftTaskRow {
@@ -40,6 +44,7 @@ function createEmptyRow(key: string): DraftTaskRow {
     title: '',
     description: '',
     priority: '2순위',
+    referenceFiles: [],
   };
 }
 
@@ -63,6 +68,9 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
   );
   const [submitting, setSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [deletingApprovedId, setDeletingApprovedId] = useState<string | null>(null);
+  const referenceInputRef = React.useRef<HTMLInputElement>(null);
+  const referenceRowKeyRef = React.useRef<string | null>(null);
 
   const { users, loading: usersLoading, error: usersError } = useUserList();
   const { tasks: dashboardTasks, loading: dashboardLoading, error: dashboardError } = useDashboardTasks();
@@ -78,6 +86,42 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
     setSelectedEmployee(null);
     setDraftRows(Array.from({ length: DEFAULT_ROW_COUNT }, (_, i) => createEmptyRow(`row-${i}`)));
     setSubmitMessage(null);
+  };
+
+  const handleAddRow = () => {
+    setDraftRows((prev) => [...prev, createEmptyRow(`row-${Date.now()}`)]);
+  };
+
+  const handleRemoveRow = (rowKey: string) => {
+    setDraftRows((prev) => prev.filter((r) => r.key !== rowKey));
+  };
+
+  const handleRowReferenceFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rowKey = referenceRowKeyRef.current;
+    const files = e.target.files;
+    if (rowKey && files) {
+      const fileList = Array.from(files);
+      setDraftRows((prev) =>
+        prev.map((row) => (row.key === rowKey ? { ...row, referenceFiles: fileList } : row))
+      );
+    }
+    e.target.value = '';
+    referenceRowKeyRef.current = null;
+  };
+
+  const openFileInputForRow = (rowKey: string) => {
+    referenceRowKeyRef.current = rowKey;
+    referenceInputRef.current?.click();
+  };
+
+  const handleDeleteApprovedTask = async (taskId: string) => {
+    if (!window.confirm('이 업무를 데이터베이스에서 삭제하시겠습니까? Firebase에서도 삭제됩니다.')) return;
+    setDeletingApprovedId(taskId);
+    try {
+      await deleteTask(taskId);
+    } finally {
+      setDeletingApprovedId(null);
+    }
   };
 
   const updateDraftRow = (key: string, updates: Partial<Omit<DraftTaskRow, 'key'>>) => {
@@ -109,6 +153,15 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
           priority: row.priority,
           dueDate: row.dueDate ?? undefined,
         });
+        for (const file of row.referenceFiles) {
+          const result = await uploadTaskFile(file, taskId);
+          await addTaskAttachment(taskId, {
+            downloadUrl: result.downloadUrl,
+            fileName: result.fileName,
+            fileSize: result.fileSize,
+            fileType: result.fileType,
+          });
+        }
         await createNotification(selectedEmployee.uid, {
           type: 'task_assigned',
           taskId,
@@ -143,35 +196,37 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-brand-light/30">
       <div className="max-w-6xl mx-auto w-full h-full flex flex-col min-h-0 overflow-hidden">
-        {/* 상단: 대시보드 / 업무 데이터베이스 */}
-        <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 bg-white border-b border-gray-200">
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-              activeTab === 'dashboard'
-                ? 'bg-brand-main text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <LayoutDashboard size={16} />
-            대시보드
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('database')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-              activeTab === 'database'
-                ? 'bg-brand-main text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            <Database size={16} />
-            업무 데이터베이스
-          </button>
+        {/* 상단: 대시보드 / 업무 데이터베이스 — 하단 콘텐츠와 동일한 패딩으로 너비 통일 */}
+        <div className="flex-shrink-0 px-6 pt-6">
+          <div className="flex items-center justify-between py-4 px-4 bg-white border border-gray-200 rounded-t-xl">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setActiveTab('dashboard')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                  activeTab === 'dashboard'
+                    ? 'bg-brand-main text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <LayoutDashboard size={16} />
+                대시보드
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('database')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                  activeTab === 'database'
+                    ? 'bg-brand-main text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Database size={16} />
+                업무 데이터베이스
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
 
       <div className="flex-1 overflow-y-auto p-6">
         {activeTab === 'database' ? (
@@ -187,33 +242,49 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
             ) : approvedTasks.length === 0 ? (
               <p className="text-sm text-gray-500">승인된 업무가 없습니다.</p>
             ) : (
-              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto">
+                <table className="w-full text-sm min-w-[640px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-24">마감일</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-20">구분</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[7rem] whitespace-nowrap">마감일</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[4rem] whitespace-nowrap">구분</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">업무 내용</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-20">우선순위</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-24">담당자</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700 w-28">승인 일시</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[5rem] whitespace-nowrap">우선순위</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[5rem] whitespace-nowrap">담당자</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 min-w-[11rem] whitespace-nowrap">승인 일시</th>
+                      <th className="py-3 px-2 text-center font-medium text-gray-700 w-10"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {approvedTasks.map((t) => (
                       <tr key={t.id} className="border-b border-gray-100 last:border-0">
-                        <td className="py-3 px-4 text-gray-600">
+                        <td className="py-3 px-4 text-gray-600 whitespace-nowrap min-w-[7rem]">
                           {t.dueDate ? new Date(t.dueDate).toLocaleDateString('ko-KR') : '-'}
                         </td>
-                        <td className="py-3 px-4 text-gray-800">{t.category}</td>
+                        <td className="py-3 px-4 text-gray-800 whitespace-nowrap">{t.category}</td>
                         <td className="py-3 px-4 text-gray-800">{t.title}</td>
-                        <td className="py-3 px-4">
-                          <PriorityBadge priority={t.priority} />
+                        <td className="py-3 px-4 min-w-[5rem]">
+                          <span className="whitespace-nowrap inline-block">
+                            <PriorityBadge priority={t.priority} />
+                          </span>
                         </td>
-                        <td className="py-3 px-4 text-gray-800">
-                          {t.assigneeDisplayName ?? t.assigneeId.slice(0, 8)}
+                        <td className="py-3 px-4 text-gray-800 whitespace-nowrap">{t.assigneeDisplayName ?? t.assigneeId.slice(0, 8)}</td>
+                        <td className="py-3 px-4 text-gray-600 whitespace-nowrap min-w-[11rem]">{formatDate(t.approvedAt)}</td>
+                        <td className="py-3 px-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteApprovedTask(t.id)}
+                            disabled={deletingApprovedId === t.id}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-50 inline-flex"
+                            aria-label="업무 삭제"
+                          >
+                            {deletingApprovedId === t.id ? (
+                              <Loader2 size={16} className="animate-spin" />
+                            ) : (
+                              <Trash2 size={16} />
+                            )}
+                          </button>
                         </td>
-                        <td className="py-3 px-4 text-gray-600">{formatDate(t.approvedAt)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -279,19 +350,20 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                     <table className="w-full text-sm border-collapse">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-20">#</th>
-                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-28">마감일</th>
-                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">CATEGORY (구분)</th>
-                          <th className="py-3 px-4 text-left font-medium text-gray-700">TASK DESCRIPTION (업무 내용)</th>
-                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">PRIORITY (우선순위)</th>
-                          <th className="py-3 px-4 text-center font-medium text-gray-700 w-20">DONE (완료)</th>
+                          <th className="py-3 pl-4 pr-1 text-left font-medium text-gray-700 w-8">#</th>
+                          <th className="py-3 px-2 text-left font-medium text-gray-700 w-28">마감일</th>
+                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">구분</th>
+                          <th className="py-3 px-4 text-left font-medium text-gray-700">업무 내용</th>
+                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">우선순위</th>
+                          <th className="py-3 px-4 text-left font-medium text-gray-700 min-w-[140px]">(참고 파일첨부)</th>
+                          <th className="py-3 px-2 text-center font-medium text-gray-700 w-10"></th>
                         </tr>
                       </thead>
                       <tbody>
                         {draftRows.map((row, idx) => (
                           <tr key={row.key} className="border-b border-gray-100 last:border-0">
-                            <td className="py-2 px-4 text-gray-600">{idx + 1}</td>
-                            <td className="py-2 px-4">
+                            <td className="py-2 pl-4 pr-1 text-gray-600 w-8">{idx + 1}</td>
+                            <td className="py-2 px-2">
                               <input
                                 type="date"
                                 value={row.dueDate ? new Date(row.dueDate).toISOString().slice(0, 10) : ''}
@@ -307,46 +379,85 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                               <select
                                 value={row.category}
                                 onChange={(e) => updateDraftRow(row.key, { category: e.target.value as TaskCategory })}
-                                className="w-full max-w-[100px] px-2 py-1.5 border border-gray-200 rounded text-sm"
+                                className="w-full min-w-[72px] px-2 py-1.5 border border-gray-200 rounded text-sm"
                               >
                                 {CATEGORIES.map((c) => (
                                   <option key={c} value={c}>{c}</option>
                                 ))}
                               </select>
                             </td>
-                            <td className="py-2 px-4">
+                            <td className="py-3 px-4 align-top">
                               <input
                                 type="text"
                                 value={row.title}
                                 onChange={(e) => updateDraftRow(row.key, { title: e.target.value })}
-                                placeholder="업무 내용 입력"
-                                className="w-full min-w-[180px] px-2 py-1.5 border border-gray-200 rounded text-sm"
+                                placeholder="주제 입력"
+                                className="w-full min-w-[220px] px-3 py-2 border border-gray-200 rounded text-base"
                               />
-                              <input
-                                type="text"
+                              <textarea
                                 value={row.description}
                                 onChange={(e) => updateDraftRow(row.key, { description: e.target.value })}
-                                placeholder="상세 (선택)"
-                                className="w-full min-w-[180px] mt-1 px-2 py-1 border border-gray-100 rounded text-xs text-gray-500"
+                                placeholder="업무 상세 내용 작성"
+                                rows={4}
+                                className="w-full min-w-[220px] mt-2 px-3 py-2 border border-gray-200 rounded text-sm text-gray-700 resize-none"
                               />
                             </td>
                             <td className="py-2 px-4">
                               <select
                                 value={row.priority}
                                 onChange={(e) => updateDraftRow(row.key, { priority: e.target.value as TaskPriority })}
-                                className="w-full max-w-[90px] px-2 py-1.5 border border-gray-200 rounded text-sm"
+                                className="w-full min-w-[80px] px-2 py-1.5 border border-gray-200 rounded text-sm"
                               >
                                 {PRIORITIES.map((p) => (
                                   <option key={p} value={p}>{p}</option>
                                 ))}
                               </select>
                             </td>
-                            <td className="py-2 px-4 text-center text-gray-400">—</td>
+                            <td className="py-2 px-4 align-top">
+                              <div className="space-y-1">
+                                <input
+                                  ref={referenceInputRef}
+                                  type="file"
+                                  multiple
+                                  className="hidden"
+                                  onChange={handleRowReferenceFilesChange}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => openFileInputForRow(row.key)}
+                                  className="flex items-center gap-1 text-sm text-brand-main hover:underline"
+                                >
+                                  <Paperclip size={14} /> 파일 첨부
+                                </button>
+                                {row.referenceFiles.length > 0 && (
+                                  <p className="text-xs text-gray-500">
+                                    {row.referenceFiles.length}개 파일
+                                  </p>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-2 px-2 text-center align-top">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveRow(row.key)}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded inline-flex"
+                                aria-label="이 행 삭제"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleAddRow}
+                    className="mt-4 flex items-center justify-center gap-2 w-full py-3 border-2 border-dashed border-brand-sub rounded-xl text-brand-main font-medium hover:bg-brand-sub/5"
+                  >
+                    <Plus size={20} /> 업무 추가
+                  </button>
                   {submitMessage && (
                     <p className={`mt-3 text-sm ${submitMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
                       {submitMessage.text}
@@ -373,46 +484,50 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
               </section>
             )}
 
-            {/* 전체 업무 현황 테이블 */}
-            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-              <h2 className="text-lg font-semibold text-brand-dark px-4 py-3 border-b border-gray-200 bg-gray-50">
-                전체 업무 현황
-              </h2>
-              {dashboardLoading ? (
-                <div className="p-8 text-center text-sm text-gray-500">
-                  <Loader2 size={18} className="animate-spin mx-auto mb-2" /> 불러오는 중…
-                </div>
-              ) : dashboardError ? (
-                <div className="p-8 text-center text-sm text-red-600">{dashboardError}</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        <th className="py-3 px-4 text-left font-medium text-gray-700 w-28"># 마감일</th>
-                        <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">담당자</th>
-                        <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">구분</th>
-                        <th className="py-3 px-4 text-left font-medium text-gray-700">업무 내용</th>
-                        <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">우선순위</th>
-                        <th className="py-3 px-4 text-center font-medium text-gray-700 w-40">완료 / 승인</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dashboardTasks.map((task) => (
-                        <DashboardRow
-                          key={task.id}
-                          task={task}
-                          onUpdateTask={updateTask}
-                          onApprove={approveTask}
-                          onRequestRevision={requestRevision}
-                          onOpenDetail={() => navigate(`/task/${task.id}`)}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            {/* 전체 업무 현황 — 직원 선택 후 지시 폼이 열려 있을 때는 숨김 */}
+            {!selectedEmployee && (
+              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <h2 className="text-lg font-semibold text-brand-dark px-4 py-3 border-b border-gray-200 bg-gray-50">
+                  전체 업무 현황
+                </h2>
+                {dashboardLoading ? (
+                  <div className="p-8 text-center text-sm text-gray-500">
+                    <Loader2 size={18} className="animate-spin mx-auto mb-2" /> 불러오는 중…
+                  </div>
+                ) : dashboardError ? (
+                  <div className="p-8 text-center text-sm text-red-600">{dashboardError}</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm border-collapse">
+                      <thead>
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-28"># 마감일</th>
+                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">담당자</th>
+                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">구분</th>
+                          <th className="py-3 px-4 text-left font-medium text-gray-700">업무 내용</th>
+                          <th className="py-3 px-4 text-left font-medium text-gray-700 w-24">우선순위</th>
+                          <th className="py-3 px-4 text-left font-medium text-gray-700 min-w-[200px]">완료 / 승인</th>
+                          <th className="py-3 px-2 text-center font-medium text-gray-700 w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dashboardTasks.map((task) => (
+                          <DashboardRow
+                            key={task.id}
+                            task={task}
+                            onUpdateTask={updateTask}
+                            onApprove={approveTask}
+                            onRequestRevision={requestRevision}
+                            onOpenDetail={() => navigate(`/task/${task.id}`)}
+                            onDelete={deleteTask}
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -425,16 +540,23 @@ interface DashboardRowProps {
   task: Task;
   onUpdateTask: typeof updateTask;
   onApprove: (taskId: string) => Promise<void>;
-  onRequestRevision: (taskId: string, u: { description?: string; category?: TaskCategory; priority?: TaskPriority }) => Promise<void>;
+  onRequestRevision: (taskId: string, u: { title?: string; description?: string; category?: TaskCategory; priority?: TaskPriority }) => Promise<void>;
   onOpenDetail: () => void;
+  onDelete: (taskId: string) => Promise<void>;
   key?: React.Key;
 }
 
-function DashboardRow({ task, onUpdateTask, onApprove, onRequestRevision, onOpenDetail }: DashboardRowProps) {
+function DashboardRow({ task, onUpdateTask, onApprove, onRequestRevision, onOpenDetail, onDelete }: DashboardRowProps) {
   const [saving, setSaving] = useState(false);
   const [revising, setRevising] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [localTitle, setLocalTitle] = useState(task.title);
   const [localDescription, setLocalDescription] = useState(task.description);
   const isSubmitted = task.status === 'submitted';
+
+  useEffect(() => {
+    setLocalTitle(task.title);
+  }, [task.id, task.title]);
 
   useEffect(() => {
     setLocalDescription(task.description);
@@ -457,6 +579,13 @@ function DashboardRow({ task, onUpdateTask, onApprove, onRequestRevision, onOpen
     onUpdateTask(task.id, { priority: v }).finally(() => setSaving(false));
   };
 
+  const handleTitleBlur = () => {
+    const trimmed = localTitle.trim();
+    if (trimmed === task.title) return;
+    setSaving(true);
+    onUpdateTask(task.id, { title: trimmed || task.title }).finally(() => setSaving(false));
+  };
+
   const handleDescriptionBlur = () => {
     if (localDescription.trim() === task.description) return;
     setSaving(true);
@@ -476,12 +605,23 @@ function DashboardRow({ task, onUpdateTask, onApprove, onRequestRevision, onOpen
     setRevising(true);
     try {
       await onRequestRevision(task.id, {
-        description: task.description,
+        title: localTitle.trim(),
+        description: localDescription,
         category: task.category,
         priority: task.priority,
       });
     } finally {
       setRevising(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm('이 업무를 삭제하시겠습니까? 담당자 목록에서도 사라집니다.')) return;
+    setDeleting(true);
+    try {
+      await onDelete(task.id);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -503,59 +643,87 @@ function DashboardRow({ task, onUpdateTask, onApprove, onRequestRevision, onOpen
         <select
           value={task.category}
           onChange={handleCategoryChange}
-          className="w-full max-w-[100px] px-2 py-1.5 border border-gray-200 rounded text-sm"
+          className="w-full min-w-[72px] px-2 py-1.5 border border-gray-200 rounded text-sm"
         >
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
       </td>
-      <td className="py-3 px-4">
-        <textarea
-          value={localDescription}
-          onChange={(e) => setLocalDescription(e.target.value)}
-          onBlur={handleDescriptionBlur}
-          className="w-full min-w-[200px] px-2 py-1.5 border border-gray-200 rounded text-sm resize-none"
-          rows={2}
-          placeholder="업무 내용"
-        />
-        <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[240px]">{task.title}</p>
+      <td className="py-3 px-4 align-top">
+        <div className="space-y-2 min-w-[200px]">
+          <input
+            type="text"
+            value={localTitle}
+            onChange={(e) => setLocalTitle(e.target.value)}
+            onBlur={handleTitleBlur}
+            className="w-full px-2 py-1.5 border border-gray-200 rounded text-base font-medium placeholder:text-gray-400"
+            placeholder="업무 주제"
+          />
+          <textarea
+            value={localDescription}
+            onChange={(e) => setLocalDescription(e.target.value)}
+            onBlur={handleDescriptionBlur}
+            className="w-full px-2 py-1.5 border border-gray-200 rounded text-base resize-y min-h-[4rem]"
+            rows={3}
+            placeholder="상세 내용 (재검토 지시 시 수정 후 재검토 지시 버튼 클릭)"
+          />
+        </div>
       </td>
       <td className="py-3 px-4">
         <select
           value={task.priority}
           onChange={handlePriorityChange}
-          className="w-full max-w-[90px] px-2 py-1.5 border border-gray-200 rounded text-sm"
+          className="w-full min-w-[80px] px-2 py-1.5 border border-gray-200 rounded text-sm"
         >
           {PRIORITIES.map((p) => (
             <option key={p} value={p}>{p}</option>
           ))}
         </select>
       </td>
-      <td className="py-3 px-4 text-center">
+      <td className="py-3 px-4">
         {!isSubmitted ? (
           <span className="text-gray-400 text-xs">대기 중</span>
         ) : (
-          <div className="flex items-center justify-center gap-2 flex-wrap">
-            <CheckCircle size={18} className="text-green-600 flex-shrink-0" />
-            <button
-              type="button"
-              onClick={handleApprove}
-              disabled={saving}
-              className="text-xs font-medium px-2 py-1 rounded bg-brand-main text-white hover:bg-brand-main/90 disabled:opacity-50"
-            >
-              최종 승인
-            </button>
+          <div className="inline-flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={onOpenDetail}
+                className="text-xs font-medium px-3 py-1.5 rounded bg-brand-sub text-white hover:bg-brand-sub/90"
+              >
+                내용확인
+              </button>
+              <button
+                type="button"
+                onClick={handleApprove}
+                disabled={saving}
+                className="text-xs font-medium px-3 py-1.5 rounded bg-brand-main text-white hover:bg-brand-main/90 disabled:opacity-50"
+              >
+                최종 승인
+              </button>
+            </div>
             <button
               type="button"
               onClick={handleRevision}
               disabled={revising}
-              className="text-xs font-medium px-2 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+              className="w-full text-xs font-medium px-3 py-1.5 rounded border border-gray-300 text-gray-700 hover:bg-gray-100 disabled:opacity-50"
             >
-              재검토
+              재검토 지시
             </button>
           </div>
         )}
+      </td>
+      <td className="py-3 px-2 text-center">
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={deleting}
+          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-50 inline-flex"
+          aria-label="업무 삭제"
+        >
+          <Trash2 size={16} />
+        </button>
       </td>
     </tr>
   );
