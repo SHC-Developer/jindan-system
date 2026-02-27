@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { onSnapshot, orderBy, query } from 'firebase/firestore';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { onSnapshot, orderBy, query, deleteDoc, doc, getDocs } from 'firebase/firestore';
 import { getUserNotificationsRef } from '../lib/firestore-paths';
 import type { TaskNotification } from '../types/task';
 
@@ -27,11 +27,33 @@ function docToNotification(docId: string, data: Record<string, unknown>): TaskNo
 export function useNotifications({ uid, onNew }: UseNotificationsOptions): {
   notifications: TaskNotification[];
   loading: boolean;
+  deleteNotification: (notificationId: string) => Promise<void>;
+  deleteAllNotifications: () => Promise<void>;
 } {
   const [notifications, setNotifications] = useState<TaskNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const onNewRef = useRef(onNew);
   onNewRef.current = onNew;
+  const uidRef = useRef(uid);
+  uidRef.current = uid;
+
+  const deleteNotification = useCallback(async (notificationId: string) => {
+    const u = uidRef.current;
+    if (!u) return;
+    const ref = doc(getUserNotificationsRef(u), notificationId);
+    await deleteDoc(ref);
+    notifiedIdsGlobal.delete(notificationId);
+  }, []);
+
+  const deleteAllNotifications = useCallback(async () => {
+    const u = uidRef.current;
+    if (!u) return;
+    const notificationsRef = getUserNotificationsRef(u);
+    const q = query(notificationsRef, orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    await Promise.all(snapshot.docs.map((d) => deleteDoc(d.ref)));
+    snapshot.docs.forEach((d) => notifiedIdsGlobal.delete(d.id));
+  }, []);
 
   useEffect(() => {
     if (!uid) {
@@ -78,5 +100,5 @@ export function useNotifications({ uid, onNew }: UseNotificationsOptions): {
     };
   }, [uid]);
 
-  return { notifications, loading };
+  return { notifications, loading, deleteNotification, deleteAllNotifications };
 }
