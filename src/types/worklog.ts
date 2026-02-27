@@ -9,4 +9,6 @@ export interface WorkLogEntry {
   status: WorkLogStatus;
   approvedBy: string | null;
   approvedAt: number | null;
+  /** 지각 시 사용자가 입력한 사유 */
+  tardinessReason: string | null;
 }

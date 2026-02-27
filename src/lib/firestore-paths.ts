@@ -105,3 +105,16 @@ export function getWorkLogsRef(): CollectionReference {
 export function getWorkLogRef(logId: string): DocumentReference {
   return doc(getDbInstance(), WORKLOGS, logId);
 }
+
+// --- 연차 (users 서브컬렉션) ---
+const LEAVE_DAYS = 'leaveDays';
+
+/** users/{uid}/leaveDays 서브컬렉션 참조 (dateKey = YYYY-MM-DD 서울 기준) */
+export function getUserLeaveDaysRef(uid: string): CollectionReference {
+  return collection(getDbInstance(), USERS_COLLECTION, uid, LEAVE_DAYS);
+}
+
+/** users/{uid}/leaveDays/{dateKey} 문서 참조 */
+export function getUserLeaveDayRef(uid: string, dateKey: string): DocumentReference {
+  return doc(getDbInstance(), USERS_COLLECTION, uid, LEAVE_DAYS, dateKey);
+}
