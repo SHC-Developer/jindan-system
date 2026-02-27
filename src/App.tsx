@@ -5,6 +5,7 @@ import { useChat } from './hooks/useChat';
 import { usePinnedNotices } from './hooks/usePinnedNotices';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { NotificationToastContainer } from './components/NotificationToast';
+import { AdminPage } from './features/admin/AdminPage';
 import { WorkAssignAdminView } from './features/work-assign/WorkAssignAdminView';
 import { WorkAssignMyListView } from './features/work-assign/WorkAssignMyListView';
 import { TaskDetailPage } from './features/work-assign/TaskDetailPage';
@@ -38,6 +39,7 @@ import {
   MessageCircle,
   Pin,
   PinOff,
+  Shield,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -81,7 +83,7 @@ const MIDDLE_MENUS: MiddleMenu[] = [
 const GENERAL_CHAT_PROJECT_ID = 'general-notice';
 const GENERAL_CHAT_SUBMENU_ID = 'general-chat';
 
-type ActiveSection = 'project' | 'work-assign' | 'general-chat';
+type ActiveSection = 'project' | 'work-assign' | 'general-chat' | 'admin-page';
 
 interface SidebarProps {
   selectedProject: Project;
@@ -223,6 +225,22 @@ const Sidebar = ({
               {user.role === 'admin' ? '업무 지시하기(현황)' : '업무 지시사항 확인'}
             </span>
           </button>
+          {user.role === 'admin' && (
+            <button
+              onClick={() => {
+                onNavigateToHome?.();
+                setActiveSection('admin-page');
+              }}
+              className={`w-full text-left px-2 py-2 rounded-md flex items-center text-sm transition-colors mt-1 ${
+                activeSection === 'admin-page'
+                  ? 'bg-brand-main text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+              }`}
+            >
+              <Shield size={16} className="mr-2 opacity-80" />
+              <span className="truncate">관리자 페이지</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1285,6 +1303,8 @@ export default function App() {
     ) : (
       <WorkAssignMyListView currentUser={user} />
     )
+  ) : activeSection === 'admin-page' ? (
+    <AdminPage />
   ) : activeSection === 'general-chat' ? null : (
     <>
       <MainContent
@@ -1345,7 +1365,7 @@ export default function App() {
         onNavigateToHome={() => navigate('/')}
       />
       <div className="flex flex-1 min-w-0 overflow-hidden w-full">
-        {isTaskDetailPage || activeSection === 'work-assign' ? (
+        {isTaskDetailPage || activeSection === 'work-assign' || activeSection === 'admin-page' ? (
           <div className="w-full h-full min-h-0 min-w-0 overflow-hidden">{mainContent}</div>
         ) : (
           mainContent

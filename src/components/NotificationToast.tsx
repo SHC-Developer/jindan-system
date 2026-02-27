@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToastContext } from '../contexts/ToastContext';
-import { useNotificationContext } from '../contexts/NotificationContext';
 import type { ToastItem } from '../types/toast';
 
 function ToastItemView({
@@ -51,33 +50,14 @@ function ToastItemView({
 }
 
 export function NotificationToastContainer() {
-  const { toasts, removeToast, clearAllToasts } = useToastContext();
-  const { deleteNotification, deleteAllNotifications, isAdmin } = useNotificationContext();
+  const { toasts, removeToast } = useToastContext();
   const navigate = useNavigate();
-  const [clearingAll, setClearingAll] = useState(false);
-
-  const handleDismiss = (item: ToastItem) => {
-    if (item.notificationId) {
-      deleteNotification(item.notificationId).catch(() => {});
-    }
-    removeToast(item.id);
-  };
 
   const handleClick = (item: ToastItem) => {
     if (item.taskId) {
       navigate(`/task/${item.taskId}`);
     }
-    handleDismiss(item);
-  };
-
-  const handleClearAll = async () => {
-    setClearingAll(true);
-    try {
-      await deleteAllNotifications();
-      clearAllToasts();
-    } finally {
-      setClearingAll(false);
-    }
+    removeToast(item.id);
   };
 
   return (
@@ -86,21 +66,11 @@ export function NotificationToastContainer() {
       aria-live="polite"
     >
       <div className="flex flex-col-reverse gap-3 items-end pointer-events-auto">
-        {isAdmin && toasts.length > 0 && (
-          <button
-            type="button"
-            onClick={handleClearAll}
-            disabled={clearingAll}
-            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-brand-main text-white hover:bg-brand-main/90 disabled:opacity-50"
-          >
-            {clearingAll ? '삭제 중…' : '모두 지우기'}
-          </button>
-        )}
         {toasts.map((item) => (
           <ToastItemView
             key={item.id}
             item={item}
-            onDismiss={() => handleDismiss(item)}
+            onDismiss={() => removeToast(item.id)}
             onClick={() => handleClick(item)}
           />
         ))}
