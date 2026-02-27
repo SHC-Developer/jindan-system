@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useToastContext } from '../contexts/ToastContext';
+import { useNotificationContext } from '../contexts/NotificationContext';
 import type { ToastItem } from '../types/toast';
-
-const TOAST_DURATION_MS = 5000;
-const FADE_OUT_MS = 400;
 
 function ToastItemView({
   item,
@@ -16,24 +14,9 @@ function ToastItemView({
   onClick: () => void;
   key?: string;
 }) {
-  const [fading, setFading] = useState(false);
-  const onDismissRef = useRef(onDismiss);
-  onDismissRef.current = onDismiss;
-
-  useEffect(() => {
-    const startFade = setTimeout(() => setFading(true), TOAST_DURATION_MS);
-    const remove = setTimeout(() => onDismissRef.current(), TOAST_DURATION_MS + FADE_OUT_MS);
-    return () => {
-      clearTimeout(startFade);
-      clearTimeout(remove);
-    };
-  }, [item.id]);
-
   return (
     <div
-      className={`rounded-xl shadow-lg border border-gray-200 bg-white p-4 min-w-[280px] max-w-[360px] cursor-pointer hover:bg-gray-50 border-l-4 border-l-brand-main transition-opacity duration-300 ${
-        fading ? 'opacity-0' : 'opacity-100'
-      }`}
+      className="rounded-xl shadow-lg border border-gray-200 bg-white p-4 min-w-[280px] max-w-[360px] cursor-pointer hover:bg-gray-50 border-l-4 border-l-brand-main"
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -68,14 +51,33 @@ function ToastItemView({
 }
 
 export function NotificationToastContainer() {
-  const { toasts, removeToast } = useToastContext();
+  const { toasts, removeToast, clearAllToasts } = useToastContext();
+  const { deleteNotification, deleteAllNotifications, isAdmin } = useNotificationContext();
   const navigate = useNavigate();
+  const [clearingAll, setClearingAll] = useState(false);
+
+  const handleDismiss = (item: ToastItem) => {
+    if (item.notificationId) {
+      deleteNotification(item.notificationId).catch(() => {});
+    }
+    removeToast(item.id);
+  };
 
   const handleClick = (item: ToastItem) => {
     if (item.taskId) {
       navigate(`/task/${item.taskId}`);
     }
-    removeToast(item.id);
+    handleDismiss(item);
+  };
+
+  const handleClearAll = async () => {
+    setClearingAll(true);
+    try {
+      await deleteAllNotifications();
+      clearAllToasts();
+    } finally {
+      setClearingAll(false);
+    }
   };
 
   return (
@@ -84,11 +86,21 @@ export function NotificationToastContainer() {
       aria-live="polite"
     >
       <div className="flex flex-col-reverse gap-3 items-end pointer-events-auto">
+        {isAdmin && toasts.length > 0 && (
+          <button
+            type="button"
+            onClick={handleClearAll}
+            disabled={clearingAll}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-brand-main text-white hover:bg-brand-main/90 disabled:opacity-50"
+          >
+            {clearingAll ? '삭제 중…' : '모두 지우기'}
+          </button>
+        )}
         {toasts.map((item) => (
           <ToastItemView
             key={item.id}
             item={item}
-            onDismiss={() => removeToast(item.id)}
+            onDismiss={() => handleDismiss(item)}
             onClick={() => handleClick(item)}
           />
         ))}

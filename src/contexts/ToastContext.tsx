@@ -5,6 +5,7 @@ interface ToastContextValue {
   toasts: ToastItem[];
   addToast: (item: Omit<ToastItem, 'id' | 'createdAt'>) => void;
   removeToast: (id: string) => void;
+  clearAllToasts: () => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -21,8 +22,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  const clearAllToasts = useCallback(() => {
+    setToasts([]);
+  }, []);
+
   return (
-    <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
+    <ToastContext.Provider value={{ toasts, addToast, removeToast, clearAllToasts }}>
       {children}
     </ToastContext.Provider>
   );

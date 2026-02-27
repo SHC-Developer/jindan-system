@@ -3,8 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { useChat } from './hooks/useChat';
 import { usePinnedNotices } from './hooks/usePinnedNotices';
-import { useToastContext } from './contexts/ToastContext';
-import { useNotifications } from './hooks/useNotifications';
+import { NotificationProvider } from './contexts/NotificationContext';
 import { NotificationToastContainer } from './components/NotificationToast';
 import { WorkAssignAdminView } from './features/work-assign/WorkAssignAdminView';
 import { WorkAssignMyListView } from './features/work-assign/WorkAssignMyListView';
@@ -1254,22 +1253,6 @@ const RightPanel = ({ selectedMenuData }: { selectedMenuData: { name: string } }
   );
 };
 
-function NotificationListener() {
-  const { user } = useAuth();
-  const { addToast } = useToastContext();
-  useNotifications({
-    uid: user?.uid ?? null,
-    onNew: (n) => {
-      const message =
-        n.type === 'task_completed'
-          ? `${n.completedByDisplayName ?? '직원'}이(가) 업무를 완료했습니다.`
-          : '새 업무가 할당되었습니다.';
-      addToast({ title: n.title, message, taskId: n.taskId });
-    },
-  });
-  return null;
-}
-
 export default function App() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
@@ -1317,8 +1300,7 @@ export default function App() {
 
   if (activeSection === 'general-chat') {
     return (
-      <>
-        <NotificationListener />
+      <NotificationProvider>
         <NotificationToastContainer />
         <GeneralChatPage
           user={user}
@@ -1339,13 +1321,13 @@ export default function App() {
           }}
           onLogout={handleLogout}
         />
-      </>
+      </NotificationProvider>
     );
   }
 
   return (
+    <NotificationProvider>
     <div className="flex h-screen w-full overflow-hidden font-sans bg-brand-light">
-      <NotificationListener />
       <NotificationToastContainer />
       <Sidebar
         selectedProject={selectedProject}
@@ -1370,5 +1352,6 @@ export default function App() {
         )}
       </div>
     </div>
+    </NotificationProvider>
   );
 }
