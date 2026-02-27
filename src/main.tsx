@@ -35,6 +35,30 @@ createRoot(document.getElementById('root')!).render(
           }
         />
         <Route
+          path="/work-assign"
+          element={
+            <ProtectedRoute>
+              <AppWithToast />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <AppWithToast />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/project/:projectNameEncoded"
+          element={
+            <ProtectedRoute>
+              <AppWithToast />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/task/:taskId"
           element={
             <ProtectedRoute>
@@ -42,7 +66,7 @@ createRoot(document.getElementById('root')!).render(
             </ProtectedRoute>
           }
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/general-chat" replace />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

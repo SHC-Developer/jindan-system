@@ -14,6 +14,8 @@ import { downloadFileFromUrl } from './lib/download';
 import { formatFileSize, isImageFile } from './lib/storage';
 import type { AppUser } from './types/user';
 import type { ChatMessage } from './types/chat';
+import type { Project } from './types/project';
+import { useProjects } from './hooks/useProjects';
 import {
   Hash,
   Search,
@@ -40,8 +42,13 @@ import {
   Pin,
   PinOff,
   Shield,
+  Plus,
+  Pencil,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+/** public 폴더 기준 로고 경로 (Vite base URL 적용) */
+const LOGO_URL = `${import.meta.env.BASE_URL}logo2.png`;
 
 // --- Types & Mock Data ---
 
@@ -57,17 +64,6 @@ interface MiddleMenu {
   name: string;
   icon: React.ElementType;
 }
-
-interface Project {
-  id: string;
-  name: string;
-}
-
-const PROJECTS: Project[] = [
-  { id: 'gyeonggi-bridge-A', name: '경기도 교량A' },
-  { id: 'gyeonggi-bridge-B', name: '경기도 교량B' },
-  { id: 'seoul-tunnel-C', name: '서울시 터널C' },
-];
 
 const MIDDLE_MENUS: MiddleMenu[] = [
   { id: 'quantity-extract', name: '물량표 추출', icon: BarChart3 },
@@ -86,21 +82,31 @@ const GENERAL_CHAT_SUBMENU_ID = 'general-chat';
 type ActiveSection = 'project' | 'work-assign' | 'general-chat' | 'admin-page';
 
 interface SidebarProps {
-  selectedProject: Project;
-  setSelectedProject: (p: Project) => void;
+  projects: Project[];
+  projectsLoading: boolean;
+  projectsError: string | null;
+  selectedProject: Project | null;
+  setSelectedProject: (p: Project | null) => void;
   selectedMenu: MiddleMenuId;
   setSelectedMenu: (m: MiddleMenuId) => void;
   activeSection: ActiveSection;
   setActiveSection: (s: ActiveSection) => void;
   user: { displayName: string | null; jobTitle: string | null; role: 'admin' | 'general' };
   onLogout: () => void;
-  /** 공지사항/일반채팅 클릭 시 /general-chat 으로 이동 (라우트 연동) */
   onNavigateToGeneralChat?: () => void;
-  /** 프로젝트/업무지시 클릭 시 / 로 이동 */
-  onNavigateToHome?: () => void;
+  onNavigateToProject: (project: Project) => void;
+  onNavigateToWorkAssign: () => void;
+  onNavigateToAdmin: () => void;
+  onCreateProject: (name: string) => Promise<Project>;
+  onUpdateProjectName: (projectId: string, name: string) => Promise<void>;
+  onDeleteProject: (projectId: string) => Promise<void>;
+  onAfterRename?: (projectId: string, newName: string) => void;
 }
 
 const Sidebar = ({
+  projects,
+  projectsLoading,
+  projectsError,
   selectedProject,
   setSelectedProject,
   selectedMenu,
@@ -110,19 +116,97 @@ const Sidebar = ({
   user,
   onLogout,
   onNavigateToGeneralChat,
-  onNavigateToHome,
+  onNavigateToProject,
+  onNavigateToWorkAssign,
+  onNavigateToAdmin,
+  onCreateProject,
+  onUpdateProjectName,
+  onDeleteProject,
+  onAfterRename,
 }: SidebarProps) => {
   const [isProjectsExpanded, setIsProjectsExpanded] = useState(true);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    project: Project | null;
+  } | null>(null);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+  const [newProjectOpen, setNewProjectOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [createLoading, setCreateLoading] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const close = () => setContextMenu(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, []);
+
+  const handleContextMenu = (e: React.MouseEvent, project: Project | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, project });
+  };
+
+  const handleDoubleClick = (e: React.MouseEvent, project: Project) => {
+    e.stopPropagation();
+    if (user.role !== 'admin') return;
+    setEditingProjectId(project.id);
+    setEditingName(project.name);
+  };
+
+  const saveRename = useCallback(async () => {
+    if (!editingProjectId || !editingName.trim()) {
+      setEditingProjectId(null);
+      return;
+    }
+    const newName = editingName.trim();
+    try {
+      await onUpdateProjectName(editingProjectId, newName);
+      onAfterRename?.(editingProjectId, newName);
+      setEditingProjectId(null);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [editingProjectId, editingName, onUpdateProjectName, onAfterRename]);
+
+  const handleDelete = useCallback(
+    async (project: Project) => {
+      setContextMenu(null);
+      if (user.role !== 'admin') return;
+      if (!window.confirm(`"${project.name}" 프로젝트를 삭제하시겠습니까? 관련 채팅 등 모든 데이터가 삭제됩니다.`)) return;
+      try {
+        await onDeleteProject(project.id);
+      } catch (err) {
+        console.error(err);
+      }
+    },
+    [user.role, onDeleteProject]
+  );
+
+  const handleCreateProject = useCallback(async () => {
+    const name = newProjectName.trim();
+    if (!name) return;
+    setCreateLoading(true);
+    try {
+      await onCreateProject(name);
+      setNewProjectOpen(false);
+      setNewProjectName('');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCreateLoading(false);
+    }
+  }, [newProjectName, onCreateProject]);
 
   return (
     <div className="w-64 bg-brand-dark text-gray-300 flex flex-col h-full flex-shrink-0">
       {/* Logo Area */}
       <div className="h-14 flex items-center px-4 border-b border-gray-700/50 min-w-0" lang="ko">
-        <div className="w-6 h-6 bg-brand-sub rounded-md mr-2 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-          A
-        </div>
-        <span className="font-bold text-white tracking-tight whitespace-nowrap flex-shrink-0" title="진단 자동화 플랫폼">
-          진단 자동화 플랫폼
+        <img src={LOGO_URL} alt="" className="w-6 h-6 rounded-md mr-2 object-contain flex-shrink-0" />
+        <span className="font-bold text-white tracking-tight whitespace-nowrap flex-shrink-0" title="KDVO 안전진단팀">
+          KDVO 안전진단팀
         </span>
       </div>
 
@@ -146,14 +230,28 @@ const Sidebar = ({
         </div>
 
         {/* Projects Section */}
-        <div className="px-2 mb-2">
-          <button
-            onClick={() => setIsProjectsExpanded(!isProjectsExpanded)}
-            className="flex items-center justify-between w-full px-2 py-1 text-xs font-semibold text-gray-400 hover:text-white uppercase tracking-wider mb-1"
+        <div className="px-2 mb-2" ref={sidebarRef}>
+          <div
+            className="flex items-center justify-between w-full mb-1"
+            onContextMenu={(e) => handleContextMenu(e, null)}
           >
-            <span>프로젝트</span>
-            {isProjectsExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-          </button>
+            <button
+              onClick={() => setIsProjectsExpanded(!isProjectsExpanded)}
+              className="flex items-center justify-between flex-1 min-w-0 px-2 py-1 text-xs font-semibold text-gray-400 hover:text-white uppercase tracking-wider"
+            >
+              <span>프로젝트</span>
+              {isProjectsExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewProjectOpen(true)}
+              className="p-1 text-gray-400 hover:text-white hover:bg-white/10 rounded"
+              title="새 프로젝트"
+              aria-label="새 프로젝트"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
 
           <AnimatePresence>
             {isProjectsExpanded && (
@@ -163,26 +261,52 @@ const Sidebar = ({
                 exit={{ height: 0, opacity: 0 }}
                 className="space-y-0.5"
               >
-                {PROJECTS.map((project) => (
+                {projectsLoading && (
+                  <div className="px-2 py-2 text-xs text-gray-500">불러오는 중…</div>
+                )}
+                {!projectsLoading && projectsError && (
+                  <div className="px-2 py-2 text-xs text-red-400">{projectsError}</div>
+                )}
+                {!projectsLoading && !projectsError && projects.map((project) => (
                   <div key={project.id}>
-                    <button
-                      onClick={() => {
-                        onNavigateToHome?.();
-                        setActiveSection('project');
-                        setSelectedProject(project);
-                      }}
+                    <div
                       className={`w-full text-left px-2 py-2 rounded-md flex items-center text-sm transition-colors ${
-                        selectedProject.id === project.id && activeSection === 'project'
+                        selectedProject?.id === project.id && activeSection === 'project'
                           ? 'bg-white/10 text-white font-medium'
                           : 'hover:bg-white/5 text-gray-400'
                       }`}
+                      onContextMenu={(e) => handleContextMenu(e, project)}
+                      onDoubleClick={(e) => handleDoubleClick(e, project)}
                     >
-                      <Hash size={16} className="mr-2 opacity-70" />
-                      <span className="truncate">{project.name}</span>
-                    </button>
+                      {editingProjectId === project.id ? (
+                        <input
+                          type="text"
+                          value={editingName}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onBlur={saveRename}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') saveRename();
+                            if (e.key === 'Escape') setEditingProjectId(null);
+                          }}
+                          className="flex-1 min-w-0 px-1 py-0.5 text-sm bg-white/10 text-white rounded border border-white/20 focus:outline-none focus:ring-1 focus:ring-brand-sub"
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onNavigateToProject(project);
+                          }}
+                          className="w-full text-left flex items-center min-w-0"
+                        >
+                          <Hash size={16} className="mr-2 opacity-70 flex-shrink-0" />
+                          <span className="truncate">{project.name}</span>
+                        </button>
+                      )}
+                    </div>
 
-                    {/* Middle Menus (Only shown for selected project) */}
-                    {selectedProject.id === project.id && activeSection === 'project' && (
+                    {selectedProject?.id === project.id && activeSection === 'project' && (
                       <div className="ml-4 mt-1 mb-3 space-y-0.5 border-l border-gray-700 pl-2">
                         {MIDDLE_MENUS.map((menu) => (
                           <button
@@ -207,13 +331,84 @@ const Sidebar = ({
           </AnimatePresence>
         </div>
 
+        {contextMenu && (
+          <div
+            className="fixed z-50 min-w-[160px] py-1 bg-brand-dark border border-gray-600 rounded-lg shadow-xl"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setContextMenu(null);
+                setNewProjectOpen(true);
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/10 flex items-center gap-2"
+            >
+              <Plus size={14} /> 새 프로젝트
+            </button>
+            {contextMenu.project && user.role === 'admin' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingProjectId(contextMenu.project!.id);
+                    setEditingName(contextMenu.project!.name);
+                    setContextMenu(null);
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/10 flex items-center gap-2"
+                >
+                  <Pencil size={14} /> 이름 수정
+                </button>
+                <button
+                  type="button"
+                  onClick={() => contextMenu.project && handleDelete(contextMenu.project)}
+                  className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-white/10 flex items-center gap-2"
+                >
+                  <Trash2 size={14} /> 삭제
+                </button>
+              </>
+            )}
+          </div>
+        )}
+
+        {newProjectOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => !createLoading && setNewProjectOpen(false)}>
+            <div className="bg-brand-dark rounded-lg p-4 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-sm font-semibold text-white mb-2">새 프로젝트</h3>
+              <input
+                type="text"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                placeholder="프로젝트 이름"
+                className="w-full px-3 py-2 text-sm bg-white/10 text-white rounded border border-gray-600 focus:outline-none focus:ring-1 focus:ring-brand-sub mb-3"
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => !createLoading && setNewProjectOpen(false)}
+                  className="px-3 py-1.5 text-sm text-gray-400 hover:text-white"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateProject}
+                  disabled={createLoading || !newProjectName.trim()}
+                  className="px-3 py-1.5 text-sm bg-brand-main text-white rounded hover:opacity-90 disabled:opacity-50 flex items-center gap-1"
+                >
+                  {createLoading && <Loader2 size={14} className="animate-spin" />}
+                  만들기
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 업무 지시 (프로젝트와 별도 블록) */}
         <div className="px-2 mt-4 pt-4 border-t border-gray-700/50">
           <button
-            onClick={() => {
-              onNavigateToHome?.();
-              setActiveSection('work-assign');
-            }}
+            onClick={onNavigateToWorkAssign}
             className={`w-full text-left px-2 py-2 rounded-md flex items-center text-sm transition-colors ${
               activeSection === 'work-assign'
                 ? 'bg-brand-main text-white shadow-sm'
@@ -227,10 +422,7 @@ const Sidebar = ({
           </button>
           {user.role === 'admin' && (
             <button
-              onClick={() => {
-                onNavigateToHome?.();
-                setActiveSection('admin-page');
-              }}
+              onClick={onNavigateToAdmin}
               className={`w-full text-left px-2 py-2 rounded-md flex items-center text-sm transition-colors mt-1 ${
                 activeSection === 'admin-page'
                   ? 'bg-brand-main text-white shadow-sm'
@@ -901,8 +1093,8 @@ const GeneralChatPage = ({
       {/* 상단 전체 너비 다크 헤더: 로고만 (채팅 입력은 하단만) */}
       <header className="h-14 w-full flex-shrink-0 flex items-center px-4 bg-brand-dark text-white">
         <span className="font-bold tracking-tight whitespace-nowrap flex items-center gap-2">
-          <span className="text-brand-sub" aria-hidden>▲</span>
-          진단 자동화 플랫폼
+          <img src={LOGO_URL} alt="" className="h-6 w-6 object-contain" aria-hidden />
+          KDVO 안전진단팀
         </span>
       </header>
 
@@ -1275,18 +1467,77 @@ export default function App() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [selectedProject, setSelectedProject] = useState<Project>(PROJECTS[0]);
+  const {
+    projects,
+    loading: projectsLoading,
+    error: projectsError,
+    createProject: onCreateProject,
+    updateProjectName: onUpdateProjectName,
+    deleteProject: onDeleteProject,
+  } = useProjects(user?.uid);
+
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedMenuId, setSelectedMenuId] = useState<MiddleMenuId>('field-survey');
   const [activeTab, setActiveTab] = useState<'chat' | 'automation'>('chat');
-  const [activeSection, setActiveSection] = useState<ActiveSection>('project');
+  const [activeSection, setActiveSection] = useState<ActiveSection>('general-chat');
 
   const selectedMenuData = MIDDLE_MENUS.find((m) => m.id === selectedMenuId) ?? MIDDLE_MENUS[0];
   const isTaskDetailPage = /^\/task\/[^/]+$/.test(location.pathname);
 
-  // URL과 activeSection 동기화: 새로고침·북마크 시 /general-chat 이면 공지사항/일반채팅 유지
+  // URL → 상태 동기화 (새로고침·북마크)
   useEffect(() => {
-    if (location.pathname === '/general-chat') setActiveSection('general-chat');
-  }, [location.pathname]);
+    const path = location.pathname;
+    if (path === '/') {
+      navigate('/general-chat', { replace: true });
+      return;
+    }
+    if (path === '/general-chat') {
+      setActiveSection('general-chat');
+      return;
+    }
+    if (path === '/work-assign') {
+      setActiveSection('work-assign');
+      return;
+    }
+    if (path === '/admin') {
+      setActiveSection('admin-page');
+      return;
+    }
+    const projectMatch = path.match(/^\/project\/(.+)$/);
+    if (projectMatch && !projectsLoading && projects.length > 0) {
+      try {
+        const name = decodeURIComponent(projectMatch[1]);
+        const project = projects.find((p) => p.name === name);
+        if (project) {
+          setActiveSection('project');
+          setSelectedProject(project);
+        }
+      } catch {
+        // ignore decode error
+      }
+    }
+  }, [location.pathname, projectsLoading, projects, navigate]);
+
+  // 프로젝트 로드 후 첫 프로젝트 선택 (URL이 /project/...가 아닐 때)
+  useEffect(() => {
+    if (projectsLoading || projects.length === 0) return;
+    const path = location.pathname;
+    if (path.startsWith('/project/')) return;
+    if (activeSection === 'project' && !selectedProject) {
+      setSelectedProject(projects[0]);
+    }
+  }, [projectsLoading, projects, activeSection, selectedProject, location.pathname]);
+
+  // 선택한 프로젝트가 삭제된 경우 선택 해제 및 general-chat으로 이동
+  useEffect(() => {
+    if (selectedProject && !projectsLoading && !projects.some((p) => p.id === selectedProject.id)) {
+      setSelectedProject(projects[0] ?? null);
+      setActiveSection(projects.length > 0 ? 'project' : 'general-chat');
+      navigate(projects.length > 0 ? '/project/' + encodeURIComponent(projects[0].name) : '/general-chat', {
+        replace: true,
+      });
+    }
+  }, [projects, projectsLoading, selectedProject, navigate]);
 
   const handleLogout = async () => {
     await signOut();
@@ -1305,7 +1556,7 @@ export default function App() {
     )
   ) : activeSection === 'admin-page' ? (
     <AdminPage />
-  ) : activeSection === 'general-chat' ? null : (
+  ) : activeSection === 'general-chat' ? null : activeSection === 'project' && selectedProject ? (
     <>
       <MainContent
         selectedProject={selectedProject}
@@ -1316,6 +1567,10 @@ export default function App() {
       />
       <RightPanel selectedMenuData={selectedMenuData} />
     </>
+  ) : (
+    <div className="flex flex-1 items-center justify-center text-gray-500 text-sm">
+      프로젝트를 선택하거나 새로 만드세요.
+    </div>
   );
 
   if (activeSection === 'general-chat') {
@@ -1325,6 +1580,9 @@ export default function App() {
         <GeneralChatPage
           user={user}
           sidebarProps={{
+            projects,
+            projectsLoading,
+            projectsError,
             selectedProject,
             setSelectedProject,
             selectedMenu: selectedMenuId,
@@ -1337,7 +1595,24 @@ export default function App() {
               navigate('/general-chat');
               setActiveSection('general-chat');
             },
-            onNavigateToHome: () => navigate('/'),
+            onNavigateToProject: (project) => {
+              navigate('/project/' + encodeURIComponent(project.name));
+              setActiveSection('project');
+              setSelectedProject(project);
+            },
+            onNavigateToWorkAssign: () => {
+              navigate('/work-assign');
+              setActiveSection('work-assign');
+            },
+            onNavigateToAdmin: () => {
+              navigate('/admin');
+              setActiveSection('admin-page');
+            },
+            onCreateProject,
+            onUpdateProjectName,
+            onDeleteProject,
+            onAfterRename: (_, newName) =>
+              navigate('/project/' + encodeURIComponent(newName), { replace: true }),
           }}
           onLogout={handleLogout}
         />
@@ -1350,6 +1625,9 @@ export default function App() {
     <div className="flex h-screen w-full overflow-hidden font-sans bg-brand-light">
       <NotificationToastContainer />
       <Sidebar
+        projects={projects}
+        projectsLoading={projectsLoading}
+        projectsError={projectsError}
         selectedProject={selectedProject}
         setSelectedProject={setSelectedProject}
         selectedMenu={selectedMenuId}
@@ -1362,7 +1640,25 @@ export default function App() {
           navigate('/general-chat');
           setActiveSection('general-chat');
         }}
-        onNavigateToHome={() => navigate('/')}
+        onNavigateToProject={(project) => {
+          navigate('/project/' + encodeURIComponent(project.name));
+          setActiveSection('project');
+          setSelectedProject(project);
+        }}
+        onNavigateToWorkAssign={() => {
+          navigate('/work-assign');
+          setActiveSection('work-assign');
+        }}
+        onNavigateToAdmin={() => {
+          navigate('/admin');
+          setActiveSection('admin-page');
+        }}
+        onCreateProject={onCreateProject}
+        onUpdateProjectName={onUpdateProjectName}
+        onDeleteProject={onDeleteProject}
+        onAfterRename={(_, newName) =>
+          navigate('/project/' + encodeURIComponent(newName), { replace: true })
+        }
       />
       <div className="flex flex-1 min-w-0 overflow-hidden w-full">
         {isTaskDetailPage || activeSection === 'work-assign' || activeSection === 'admin-page' ? (
