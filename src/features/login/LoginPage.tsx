@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { LoginForm } from './components/LoginForm';
 
-/** public 폴더 기준 로고 경로 (Vite base URL 적용) */
-const LOGO_URL = `${import.meta.env.BASE_URL}logo2.png`;
+/** 로그인 화면 전용 로고 (public/logo.png) */
+const LOGO_URL = `${import.meta.env.BASE_URL}logo.png`;
 
 export function LoginPage() {
   const { user, loading, error, signInWithGoogle, clearError } = useAuth();

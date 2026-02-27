@@ -39,6 +39,22 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "approvedAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "workLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "clockInAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "workLogs",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "clockInAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

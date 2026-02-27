@@ -92,3 +92,16 @@ export function getUserNotificationsRef(uid: string): CollectionReference {
 export function getUsersRef(): CollectionReference {
   return collection(getDbInstance(), USERS_COLLECTION);
 }
+
+// --- 출퇴근 기록 (전역) ---
+const WORKLOGS = 'workLogs';
+
+/** 전역 workLogs 컬렉션 참조 */
+export function getWorkLogsRef(): CollectionReference {
+  return collection(getDbInstance(), WORKLOGS);
+}
+
+/** workLogs/{logId} 문서 참조 */
+export function getWorkLogRef(logId: string): DocumentReference {
+  return doc(getDbInstance(), WORKLOGS, logId);
+}

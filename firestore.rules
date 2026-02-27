@@ -25,6 +25,15 @@ service cloud.firestore {
             || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
+    // 출퇴근 기록: 로그인 사용자 읽기/생성. 수정은 본인(clockOutAt만) 또는 관리자(status, approvedBy, approvedAt만)
+    match /workLogs/{logId} {
+      allow read, create: if request.auth != null;
+      allow update: if request.auth != null
+        && (resource.data.userId == request.auth.uid
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      allow delete: if false;
+    }
+
     // 채팅: 로그인한 사용자만 프로젝트/중메뉴/메시지 읽기·쓰기
     // 프로젝트: 읽기·생성은 로그인 사용자, 수정·삭제는 관리자만
     match /projects/{projectId} {

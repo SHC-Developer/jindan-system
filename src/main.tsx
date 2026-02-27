@@ -35,7 +35,23 @@ createRoot(document.getElementById('root')!).render(
           }
         />
         <Route
+          path="/cad"
+          element={
+            <ProtectedRoute>
+              <AppWithToast />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/work-assign"
+          element={
+            <ProtectedRoute>
+              <AppWithToast />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/work-log"
           element={
             <ProtectedRoute>
               <AppWithToast />
