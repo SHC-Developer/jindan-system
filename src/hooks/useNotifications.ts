@@ -59,11 +59,14 @@ export function useNotifications({ uid, onNew }: UseNotificationsOptions): {
 
           notifiedIdsRef.current.add(notificationId);
           const notification = docToNotification(notificationId, data);
-          onNewRef.current?.(notification);
 
-          deleteDoc(d.ref).catch(() => {
-            notifiedIdsRef.current.delete(notificationId);
-          });
+          deleteDoc(d.ref)
+            .then(() => {
+              onNewRef.current?.(notification);
+            })
+            .catch(() => {
+              notifiedIdsRef.current.delete(notificationId);
+            });
         }
       },
       (err) => {
