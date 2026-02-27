@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { onSnapshot, orderBy, query, deleteDoc } from 'firebase/firestore';
-import type { Unsubscribe } from 'firebase/firestore';
 import { getUserNotificationsRef } from '../lib/firestore-paths';
 import type { TaskNotification } from '../types/task';
+
+/** 리마운트/재구독 후에도 같은 알림을 다시 토스트하지 않도록 모듈 레벨에서 유지 */
+const notifiedIdsGlobal = new Set<string>();
 
 interface UseNotificationsOptions {
   uid: string | null;
@@ -28,7 +30,6 @@ export function useNotifications({ uid, onNew }: UseNotificationsOptions): {
 } {
   const [notifications, setNotifications] = useState<TaskNotification[]>([]);
   const [loading, setLoading] = useState(true);
-  const notifiedIdsRef = useRef<Set<string>>(new Set());
   const onNewRef = useRef(onNew);
   onNewRef.current = onNew;
 
@@ -55,18 +56,19 @@ export function useNotifications({ uid, onNew }: UseNotificationsOptions): {
         for (const d of snapshot.docs) {
           const data = d.data();
           const notificationId = d.id;
-          if (notifiedIdsRef.current.has(notificationId)) continue;
+          if (notifiedIdsGlobal.has(notificationId)) continue;
 
-          notifiedIdsRef.current.add(notificationId);
+          notifiedIdsGlobal.add(notificationId);
           const notification = docToNotification(notificationId, data);
+          onNewRef.current?.(notification);
 
-          deleteDoc(d.ref)
-            .then(() => {
-              onNewRef.current?.(notification);
-            })
-            .catch(() => {
-              notifiedIdsRef.current.delete(notificationId);
-            });
+          deleteDoc(d.ref).then(
+            () => {
+              notifiedIdsGlobal.delete(notificationId);
+            }
+          ).catch(() => {
+            // 삭제 실패해도 토스트는 이미 띄웠으므로 Set 유지 → 같은 알림 재표시 방지
+          });
         }
       },
       (err) => {
