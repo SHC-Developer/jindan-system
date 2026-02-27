@@ -763,20 +763,17 @@ const GeneralChatPage = ({
     () => messages.filter((m) => pinnedMessageIds.includes(m.id)),
     [messages, pinnedMessageIds]
   );
-  const restMessages = React.useMemo(
-    () => messages.filter((m) => !pinnedMessageIds.includes(m.id)),
-    [messages, pinnedMessageIds]
-  );
 
+  /* 공지는 상단에 따로 노출하고, 채팅 목록은 시간순 전체(messages)로 표시해 공지 메시지도 원래 자리에 남김 */
   const groupedByDate = React.useMemo(() => {
     const map = new Map<string, ChatMessage[]>();
-    for (const msg of restMessages) {
+    for (const msg of messages) {
       const key = formatChatDateLabel(msg.createdAt);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(msg);
     }
     return Array.from(map.entries());
-  }, [restMessages]);
+  }, [messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { onSnapshot, orderBy, query, updateDoc } from 'firebase/firestore';
+import { onSnapshot, orderBy, query, deleteDoc } from 'firebase/firestore';
 import type { Unsubscribe } from 'firebase/firestore';
 import { getUserNotificationsRef } from '../lib/firestore-paths';
 import type { TaskNotification } from '../types/task';
@@ -55,14 +55,13 @@ export function useNotifications({ uid, onNew }: UseNotificationsOptions): {
         for (const d of snapshot.docs) {
           const data = d.data();
           const notificationId = d.id;
-          if (data.read === true) continue;
           if (notifiedIdsRef.current.has(notificationId)) continue;
 
           notifiedIdsRef.current.add(notificationId);
           const notification = docToNotification(notificationId, data);
           onNewRef.current?.(notification);
 
-          updateDoc(d.ref, { read: true }).catch(() => {
+          deleteDoc(d.ref).catch(() => {
             notifiedIdsRef.current.delete(notificationId);
           });
         }
