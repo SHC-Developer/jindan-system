@@ -30,7 +30,7 @@ export function NotificationProvider({ children, onNavigateToWorkLog }: Notifica
       if (n.type === 'task_completed') {
         message = `${n.completedByDisplayName ?? '직원'}이(가) 업무를 완료했습니다.`;
       } else if (n.type === 'worklog_clockin') {
-        message = `${n.clockInByDisplayName ?? '직원'}이(가) 출근했습니다. 승인해 주세요.`;
+        message = `${n.clockInByDisplayName ?? '직원'}이(가) 출근했습니다.`;
       } else if (n.type === 'leave_approval_request') {
         message = `${n.leaveUserDisplayName ?? '직원'}이(가) 연차 승인을 요청했습니다.`;
       } else {

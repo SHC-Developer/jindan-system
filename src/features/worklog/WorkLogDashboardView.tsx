@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTodayWorkLog, useMyWorkLogs } from '../../hooks/useWorkLog';
 import { useLeaveDays } from '../../hooks/useLeaveDays';
-import { createWorkLog, clockOutWorkLog } from '../../lib/worklog';
+import { createWorkLog, clockOutWorkLog, startOvertime, endOvertime } from '../../lib/worklog';
 import { addLeaveDay, removeLeaveDay } from '../../lib/leaveDays';
 import { notifyAdmins } from '../../lib/notifications';
 import {
   toDateKeySeoul,
   getDayOfWeekSeoul,
   getNineTenSeoul,
+  getTodaySixTenSeoul,
+  getNextDaySixAmSeoul,
   isWeekdaySeoul,
   isTardySeoul,
   getWeekRangeSeoul,
@@ -42,6 +44,9 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const [tardinessReason, setTardinessReason] = useState('');
   const [calendarMonth, setCalendarMonth] = useState(() => toDateKeySeoul(Date.now()).slice(0, 7)); // YYYY-MM
   const [holidayDateKeys, setHolidayDateKeys] = useState<Set<string>>(new Set());
+  const [weekHolidayDateKeys, setWeekHolidayDateKeys] = useState<Set<string>>(new Set());
+  const [weekHolidayLoaded, setWeekHolidayLoaded] = useState(false);
+  const [overtimeLoading, setOvertimeLoading] = useState<string | null>(null);
 
   const { todayLog, loading: todayLoading, error: todayError } = useTodayWorkLog(currentUser.uid);
   const { workLogs, loading: listLoading, error: listError } = useMyWorkLogs(currentUser.uid);
@@ -56,6 +61,25 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     const year = parseInt(calendarMonth.slice(0, 4), 10);
     getHolidayDateKeys(year).then(setHolidayDateKeys);
   }, [calendarMonth]);
+
+  const { start: weekStart, end: weekEnd } = getWeekRangeSeoul(now);
+  useEffect(() => {
+    const startYear = parseInt(toDateKeySeoul(weekStart).slice(0, 4), 10);
+    const endYear = parseInt(toDateKeySeoul(weekEnd).slice(0, 4), 10);
+    const years = startYear === endYear ? [startYear] : [startYear, endYear];
+    let cancelled = false;
+    Promise.all(years.map((y) => getHolidayDateKeys(y)))
+      .then((sets) => {
+        if (cancelled) return;
+        const merged = new Set<string>();
+        sets.forEach((s) => s.forEach((k) => merged.add(k)));
+        setWeekHolidayDateKeys(merged);
+        setWeekHolidayLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [weekStart, weekEnd]);
 
   const todayKey = toDateKeySeoul(now);
   const isWeekday = isWeekdaySeoul(now);
@@ -104,22 +128,64 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     [clockOutLoading]
   );
 
-  const statusText =
-    !todayLog ? null
-    : todayLog.status === 'pending' ? '승인 대기중'
-    : '정상 근무';
+  const statusText = todayLog ? '정상 근무' : null;
 
   const showClockInButton = !isLeaveToday && !todayLog && !clockInLoading;
-  const canClockOut = todayLog?.status === 'approved' && todayLog.clockOutAt == null;
+  const canClockOut = todayLog != null && todayLog.clockOutAt == null;
 
   const todayWorkMs =
     todayLog?.clockInAt != null && todayLog.clockOutAt != null
       ? todayLog.clockOutAt - todayLog.clockInAt
-      : todayLog?.clockInAt != null && todayLog.status === 'approved'
+      : todayLog?.clockInAt != null
         ? now - todayLog.clockInAt
         : 0;
 
-  const { start: weekStart, end: weekEnd } = getWeekRangeSeoul(now);
+  useEffect(() => {
+    if (!todayLog || todayLog.clockOutAt != null) return;
+    const sixTen = getTodaySixTenSeoul(now);
+    if (now >= sixTen) {
+      clockOutWorkLog(todayLog.id, sixTen).catch(console.error);
+    }
+  }, [todayLog?.id, todayLog?.clockOutAt, now]);
+
+  useEffect(() => {
+    if (!todayLog?.clockOutAt || !todayLog.overtimeStartAt || todayLog.overtimeEndAt != null) return;
+    const nextSixAm = getNextDaySixAmSeoul(todayLog.clockInAt);
+    if (now >= nextSixAm) {
+      endOvertime(todayLog.id, nextSixAm).catch(console.error);
+    }
+  }, [todayLog?.id, todayLog?.clockInAt, todayLog?.clockOutAt, todayLog?.overtimeStartAt, todayLog?.overtimeEndAt, now]);
+
+  const handleStartOvertime = useCallback(
+    async (logId: string) => {
+      if (overtimeLoading) return;
+      setOvertimeLoading(logId);
+      try {
+        await startOvertime(logId);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setOvertimeLoading(null);
+      }
+    },
+    [overtimeLoading]
+  );
+
+  const handleEndOvertime = useCallback(
+    async (logId: string) => {
+      if (overtimeLoading) return;
+      setOvertimeLoading(logId);
+      try {
+        await endOvertime(logId);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setOvertimeLoading(null);
+      }
+    },
+    [overtimeLoading]
+  );
+
   const weekTotalMs = workLogs
     .filter(
       (log) =>
@@ -130,14 +196,16 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     )
     .reduce((sum, log) => sum + (log.clockOutAt! - log.clockInAt), 0);
   const weekTargetMs = 40 * 60 * 60 * 1000;
-  const tardyCount = workLogs.filter(
-    (log) =>
-      log.status === 'approved' &&
-      isTardySeoul(log.clockInAt) &&
-      !holidayDateKeys.has(toDateKeySeoul(log.clockInAt)) &&
-      log.clockInAt >= weekStart &&
-      log.clockInAt <= weekEnd
-  ).length;
+  const tardyCount = weekHolidayLoaded
+    ? workLogs.filter(
+        (log) =>
+          log.status === 'approved' &&
+          isTardySeoul(log.clockInAt) &&
+          !weekHolidayDateKeys.has(toDateKeySeoul(log.clockInAt)) &&
+          log.clockInAt >= weekStart &&
+          log.clockInAt <= weekEnd
+      ).length
+    : 0;
 
   const loading = todayLoading || listLoading || leaveLoading;
   const error = todayError ?? listError;
@@ -252,11 +320,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
         <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-6 items-start">
           <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
             {statusText && (
-              <p
-                className={`text-sm font-medium mb-2 ${
-                  statusText === '승인 대기중' ? 'text-amber-600' : 'text-brand-sub'
-                }`}
-              >
+              <p className="text-sm font-medium mb-2 text-brand-sub">
                 {statusText}
               </p>
             )}
@@ -285,9 +349,6 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
               {isLeaveToday && !todayLog && (
                 <p className="text-sm text-brand-sub">오늘은 연차로 등록된 날입니다.</p>
               )}
-              {todayLog && todayLog.status === 'pending' && (
-                <p className="text-sm text-amber-600">출근 버튼을 눌렀습니다. 관리자 승인을 기다려 주세요.</p>
-              )}
               {canClockOut && (
                 <button
                   type="button"
@@ -305,10 +366,37 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                   )}
                 </button>
               )}
+              {todayLog && todayLog.clockOutAt != null && todayLog.overtimeEndAt == null && (
+                <div className="flex flex-col gap-2 mt-2">
+                  {todayLog.overtimeStartAt == null ? (
+                    <button
+                      type="button"
+                      onClick={() => handleStartOvertime(todayLog.id)}
+                      disabled={overtimeLoading === todayLog.id}
+                      className="w-full py-2 px-4 rounded-lg border border-brand-main text-brand-main font-medium hover:bg-brand-main/10 disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {overtimeLoading === todayLog.id ? <Loader2 size={16} className="animate-spin" /> : null}
+                      야근 시작
+                    </button>
+                  ) : (
+                    <>
+                      <p className="text-xs text-brand-sub">야근 중</p>
+                      <button
+                        type="button"
+                        onClick={() => handleEndOvertime(todayLog.id)}
+                        disabled={overtimeLoading === todayLog.id}
+                        className="w-full py-2 px-4 rounded-lg bg-brand-main text-white font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {overtimeLoading === todayLog.id ? <Loader2 size={16} className="animate-spin" /> : null}
+                        야근 종료
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
             <p className="text-xs text-gray-500 mt-2">
               {showClockInButton && '출근 버튼을 눌러 업무를 시작하세요.'}
-              {todayLog?.status === 'pending' && '승인 후 퇴근할 수 있습니다.'}
               {canClockOut && '퇴근 버튼을 눌러 업무를 마무리하세요.'}
             </p>
           </div>
@@ -316,16 +404,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
           <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm min-w-[200px]">
             <h3 className="text-sm font-medium text-gray-700 mb-2">오늘 근무 시간</h3>
             {!todayLog && <p className="text-lg font-mono text-brand-dark">0h 0m</p>}
-            {todayLog && todayLog.status === 'pending' && (
-              <>
-                <p className="text-lg font-mono text-brand-dark">0h 0m</p>
-                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                  승인 대기중
-                </p>
-              </>
-            )}
-            {todayLog && todayLog.status === 'approved' && (
+            {todayLog && (
               <>
                 <p className="text-lg font-mono text-brand-dark">
                   {todayLog.clockOutAt
@@ -338,10 +417,8 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                     근무 중
                   </p>
                 )}
+                {todayLog.clockOutAt && <p className="text-xs text-gray-500 mt-1">퇴근 완료</p>}
               </>
-            )}
-            {todayLog?.status === 'approved' && todayLog.clockOutAt && (
-              <p className="text-xs text-gray-500 mt-1">퇴근 완료</p>
             )}
             {!todayLog && !isLeaveToday && (
               <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">

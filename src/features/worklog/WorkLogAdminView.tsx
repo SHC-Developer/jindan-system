@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { usePendingWorkLogs, useAllWorkLogs } from '../../hooks/useWorkLog';
+import { useAllWorkLogs } from '../../hooks/useWorkLog';
 import { useUserList } from '../../hooks/useUserList';
-import { approveWorkLog, deleteWorkLog } from '../../lib/worklog';
+import { deleteWorkLog } from '../../lib/worklog';
 import { subscribeLeaveDays, approveLeaveDay, unapproveLeaveDay } from '../../lib/leaveDays';
 import { getHolidayDateKeys } from '../../lib/kr-holidays';
 import {
@@ -14,7 +14,7 @@ import {
 } from '../../lib/datetime-seoul';
 import type { AppUser } from '../../types/user';
 import type { WorkLogEntry } from '../../types/worklog';
-import { Loader2, Clock, CheckCircle, Database, Filter, Download, RotateCcw, CalendarCheck, Users } from 'lucide-react';
+import { Loader2, Clock, Database, Filter, Download, RotateCcw, CalendarCheck, Users } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
@@ -82,11 +82,10 @@ interface WorkLogAdminViewProps {
   currentUser: AppUser;
 }
 
-type TabId = 'today' | 'pending' | 'database' | 'leaveApproval';
+type TabId = 'today' | 'database' | 'leaveApproval';
 
 export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
   const [activeTab, setActiveTab] = useState<TabId>('today');
-  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [databaseAssigneeFilter, setDatabaseAssigneeFilter] = useState<Set<string> | null>(null);
   const [databaseFilterOpen, setDatabaseFilterOpen] = useState(false);
   const [databaseFilterPosition, setDatabaseFilterPosition] = useState<{ top: number; left: number } | null>(null);
@@ -102,7 +101,6 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
   const databaseFilterRef = React.useRef<HTMLDivElement>(null);
   const databaseFilterDropdownRef = React.useRef<HTMLDivElement>(null);
 
-  const { workLogs: pendingLogs, loading: pendingLoading, error: pendingError } = usePendingWorkLogs();
   const { workLogs: allLogs, loading: allLoading, error: allError } = useAllWorkLogs();
   const { users, loading: usersLoading } = useUserList();
 
@@ -199,18 +197,6 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
       console.error(err);
     } finally {
       setLeaveApprovalLoading(null);
-    }
-  };
-
-  const handleApprove = async (logId: string) => {
-    if (approvingId) return;
-    setApprovingId(logId);
-    try {
-      await approveWorkLog(logId, currentUser.uid);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setApprovingId(null);
     }
   };
 
@@ -367,26 +353,8 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     XLSX.writeFile(wb, `출퇴근기록_${todayKey}.xlsx`);
   };
 
-  const loading = activeTab === 'pending' ? pendingLoading : allLoading || usersLoading;
-  const error = activeTab === 'pending' ? pendingError : allError;
-
-  if (loading && activeTab === 'pending') {
-    return (
-      <div className="h-full flex items-center justify-center bg-brand-light/30">
-        <p className="text-gray-500 flex items-center gap-2">
-          <Loader2 size={18} className="animate-spin" /> 승인 대기 목록 불러오는 중…
-        </p>
-      </div>
-    );
-  }
-
-  if (error && activeTab === 'pending') {
-    return (
-      <div className="h-full flex items-center justify-center bg-brand-light/30">
-        <p className="text-red-600">{error}</p>
-      </div>
-    );
-  }
+  const loading = allLoading || usersLoading;
+  const error = allError;
 
   return (
     <div className="w-full h-full overflow-auto bg-brand-light/30">
@@ -406,15 +374,6 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
           >
             <Users size={16} />
             오늘 출근 현황
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('pending')}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
-              activeTab === 'pending' ? 'bg-white border border-b-0 border-gray-200 text-brand-main' : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            출근 승인 대기
           </button>
           <button
             type="button"
@@ -494,63 +453,6 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                 </table>
               </div>
             )}
-          </section>
-        )}
-
-        {activeTab === 'pending' && (
-          <section className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <h2 className="text-lg font-semibold text-brand-dark px-5 py-4 border-b border-gray-200">
-              출근 승인 대기
-            </h2>
-            <p className="text-sm text-gray-500 px-5 pb-3">
-              직원이 출근하기를 누르면 여기에 표시됩니다. 승인하면 해당 직원 화면에 정상 출근으로 반영됩니다.
-            </p>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">직원</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">날짜</th>
-                    <th className="text-left py-3 px-4 font-medium text-gray-700">출근 시각</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-700 min-w-[4rem]">승인</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingLogs.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="py-8 text-center text-gray-500">
-                        승인 대기 중인 출근 기록이 없습니다.
-                      </td>
-                    </tr>
-                  ) : (
-                    pendingLogs.map((log) => (
-                      <tr key={log.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50">
-                        <td className="py-3 px-4 font-medium text-gray-800">
-                          {log.userDisplayName ?? log.userId.slice(0, 8)}
-                        </td>
-                        <td className="py-3 px-4 text-gray-700">{formatDateLabelSeoul(log.clockInAt)}</td>
-                        <td className="py-3 px-4 text-gray-700">{formatTime(log.clockInAt)}</td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleApprove(log.id)}
-                            disabled={approvingId === log.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-main text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
-                          >
-                            {approvingId === log.id ? (
-                              <Loader2 size={14} className="animate-spin flex-shrink-0" />
-                            ) : (
-                              <CheckCircle size={14} className="flex-shrink-0" />
-                            )}
-                            <span>승인</span>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
           </section>
         )}
 

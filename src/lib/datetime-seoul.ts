@@ -43,6 +43,23 @@ export function getNineTenSeoul(ms: number): number {
   return d.getTime();
 }
 
+/** 서울 기준 해당 날짜 18:10 (오후) 의 ms. 자동 퇴근 시각용. */
+export function getTodaySixTenSeoul(ms: number): number {
+  const s = new Date(ms).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  const d = new Date(s + 'T18:10:00+09:00');
+  return d.getTime();
+}
+
+/** 출근일(clockInAt) 기준 서울 다음날 06:00 의 ms. 야근 자동 종료 시각용. */
+export function getNextDaySixAmSeoul(clockInAtMs: number): number {
+  const s = new Date(clockInAtMs).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  const startOfDay = getStartOfDaySeoul(clockInAtMs);
+  const nextDayStart = startOfDay + 24 * 60 * 60 * 1000;
+  const nextKey = new Date(nextDayStart).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  const d2 = new Date(nextKey + 'T06:00:00+09:00');
+  return d2.getTime();
+}
+
 /** 서울 기준 월~금(평일) 여부 */
 export function isWeekdaySeoul(ms: number): boolean {
   const day = getDayOfWeekSeoul(ms);

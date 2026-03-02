@@ -1,9 +1,8 @@
 import { addDoc, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { getWorkLogsRef, getWorkLogRef } from './firestore-paths';
-import { notifyAdmins } from './notifications';
 import type { WorkLogStatus } from '../types/worklog';
 
-/** 출근하기: status 'pending'으로 기록 생성. 관리자 승인 전까지 "승인 대기중" 표시됨. 관리자에게 알림 전송. */
+/** 출근하기: 승인 없이 status 'approved'로 즉시 기록 생성. */
 export async function createWorkLog(
   userId: string,
   userDisplayName: string | null,
@@ -16,15 +15,12 @@ export async function createWorkLog(
     userDisplayName: userDisplayName ?? null,
     clockInAt: now,
     clockOutAt: null,
-    status: 'pending',
+    status: 'approved',
     approvedBy: null,
     approvedAt: null,
     tardinessReason: tardinessReason ?? null,
-  });
-  await notifyAdmins({
-    type: 'worklog_clockin',
-    title: '출근 승인 요청',
-    clockInByDisplayName: userDisplayName ?? undefined,
+    overtimeStartAt: null,
+    overtimeEndAt: null,
   });
   return docRef.id;
 }
@@ -39,11 +35,27 @@ export async function approveWorkLog(logId: string, approvedByUid: string): Prom
   });
 }
 
-/** 퇴근하기: clockOutAt만 업데이트. (승인된 기록에만 호출) */
-export async function clockOutWorkLog(logId: string): Promise<void> {
+/** 퇴근하기: clockOutAt 업데이트. clockOutAtMs 없으면 현재 시각, 있으면 해당 시각(자동 퇴근 18:10 등) 사용. */
+export async function clockOutWorkLog(logId: string, clockOutAtMs?: number): Promise<void> {
   const ref = getWorkLogRef(logId);
   await updateDoc(ref, {
-    clockOutAt: Date.now(),
+    clockOutAt: clockOutAtMs ?? Date.now(),
+  });
+}
+
+/** 야근 시작: 퇴근된 기록에 overtimeStartAt 설정. */
+export async function startOvertime(logId: string): Promise<void> {
+  const ref = getWorkLogRef(logId);
+  await updateDoc(ref, {
+    overtimeStartAt: Date.now(),
+  });
+}
+
+/** 야근 종료: overtimeEndAt 설정. endAtMs 없으면 현재 시각, 있으면 해당 시각(다음날 06:00 자동 종료 등) 사용. */
+export async function endOvertime(logId: string, endAtMs?: number): Promise<void> {
+  const ref = getWorkLogRef(logId);
+  await updateDoc(ref, {
+    overtimeEndAt: endAtMs ?? Date.now(),
   });
 }
 
@@ -62,6 +74,9 @@ export async function getWorkLog(logId: string): Promise<{
   status: WorkLogStatus;
   approvedBy: string | null;
   approvedAt: number | null;
+  tardinessReason: string | null;
+  overtimeStartAt: number | null;
+  overtimeEndAt: number | null;
 } | null> {
   const ref = getWorkLogRef(logId);
   const snap = await getDoc(ref);
@@ -76,5 +91,7 @@ export async function getWorkLog(logId: string): Promise<{
     approvedBy: (d.approvedBy as string | null) ?? null,
     approvedAt: (d.approvedAt as number | null) ?? null,
     tardinessReason: (d.tardinessReason as string | null) ?? null,
+    overtimeStartAt: (d.overtimeStartAt as number | null) ?? null,
+    overtimeEndAt: (d.overtimeEndAt as number | null) ?? null,
   };
 }

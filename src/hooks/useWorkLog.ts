@@ -16,6 +16,8 @@ function dataToWorkLogEntry(id: string, data: Record<string, unknown>): WorkLogE
     approvedBy: (data.approvedBy as string | null) ?? null,
     approvedAt: (data.approvedAt as number | null) ?? null,
     tardinessReason: (data.tardinessReason as string | null) ?? null,
+    overtimeStartAt: (data.overtimeStartAt as number | null) ?? null,
+    overtimeEndAt: (data.overtimeEndAt as number | null) ?? null,
   };
 }
 
@@ -77,45 +79,6 @@ export function useTodayWorkLog(userId: string | null): {
   }, [workLogs]);
 
   return { todayLog, loading, error };
-}
-
-/** 관리자용: 승인 대기(status === 'pending') 목록 실시간. */
-export function usePendingWorkLogs(): {
-  workLogs: WorkLogEntry[];
-  loading: boolean;
-  error: string | null;
-} {
-  const [workLogs, setWorkLogs] = useState<WorkLogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const ref = getWorkLogsRef();
-    const q = query(
-      ref,
-      where('status', '==', 'pending'),
-      orderBy('clockInAt', 'desc'),
-      limit(50)
-    );
-
-    const unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        setWorkLogs(
-          snapshot.docs.map((d) => dataToWorkLogEntry(d.id, d.data()))
-        );
-        setLoading(false);
-      },
-      (err) => {
-        setError(err instanceof Error ? err.message : '승인 대기 목록을 불러오지 못했습니다.');
-        setLoading(false);
-      }
-    );
-
-    return () => unsub();
-  }, []);
-
-  return { workLogs, loading, error };
 }
 
 /** 관리자용: 전체 출퇴근 기록 (최근순). 담당자/기간 필터는 클라이언트에서 적용. */
