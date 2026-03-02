@@ -471,7 +471,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                     <th className="text-left py-3 px-4 font-medium text-gray-700">직원</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-700">날짜</th>
                     <th className="text-left py-3 px-4 font-medium text-gray-700">출근 시각</th>
-                    <th className="text-center py-3 px-4 font-medium text-gray-700 w-24">승인</th>
+                    <th className="text-center py-3 px-4 font-medium text-gray-700 min-w-[4rem]">승인</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -494,14 +494,14 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                             type="button"
                             onClick={() => handleApprove(log.id)}
                             disabled={approvingId === log.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-main text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-main text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
                           >
                             {approvingId === log.id ? (
-                              <Loader2 size={14} className="animate-spin" />
+                              <Loader2 size={14} className="animate-spin flex-shrink-0" />
                             ) : (
-                              <CheckCircle size={14} />
+                              <CheckCircle size={14} className="flex-shrink-0" />
                             )}
-                            승인
+                            <span>승인</span>
                           </button>
                         </td>
                       </tr>
@@ -709,7 +709,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="text-left py-3 px-4 font-medium text-gray-700">직원</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">연차 일자</th>
-                      <th className="text-center py-3 px-4 font-medium text-gray-700 w-24">연차승인</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-700 min-w-[5.5rem]">연차승인</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -726,14 +726,14 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                                 type="button"
                                 onClick={() => handleApproveLeave(uid, item.dateKey)}
                                 disabled={leaveApprovalLoading === key}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-main text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-main text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
                               >
                                 {leaveApprovalLoading === key ? (
-                                  <Loader2 size={14} className="animate-spin" />
+                                  <Loader2 size={14} className="animate-spin flex-shrink-0" />
                                 ) : (
-                                  <CheckCircle size={14} />
+                                  <CheckCircle size={14} className="flex-shrink-0" />
                                 )}
-                                연차승인
+                                <span>연차승인</span>
                               </button>
                             </td>
                           </tr>

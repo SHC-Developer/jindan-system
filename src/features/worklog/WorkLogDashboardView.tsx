@@ -59,7 +59,8 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const todayKey = toDateKeySeoul(now);
   const isWeekday = isWeekdaySeoul(now);
   const isLeaveToday = leaveDateKeys.has(todayKey);
-  const isTardyNow = isWeekday && now > getNineTenSeoul(now);
+  const isHolidayToday = holidayDateKeys.has(todayKey);
+  const isTardyNow = isWeekday && !isHolidayToday && now > getNineTenSeoul(now);
 
   const handleClockInClick = useCallback(() => {
     if (todayLog || clockInLoading) return;
