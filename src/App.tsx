@@ -2063,7 +2063,12 @@ export default function App() {
 
   if (activeSection === 'general-chat') {
     return (
-      <NotificationProvider>
+      <NotificationProvider
+        onNavigateToWorkLog={() => {
+          navigate('/work-log');
+          setActiveSection('worklog');
+        }}
+      >
         <NotificationToastContainer />
         <GeneralChatPage
           user={user}
@@ -2118,7 +2123,12 @@ export default function App() {
 
   if (activeSection === 'cad') {
     return (
-      <NotificationProvider>
+      <NotificationProvider
+        onNavigateToWorkLog={() => {
+          navigate('/work-log');
+          setActiveSection('worklog');
+        }}
+      >
         <NotificationToastContainer />
         <CadChatPage
           user={user}
@@ -2172,7 +2182,12 @@ export default function App() {
   }
 
   return (
-    <NotificationProvider>
+    <NotificationProvider
+      onNavigateToWorkLog={() => {
+        navigate('/work-log');
+        setActiveSection('worklog');
+      }}
+    >
     <div className="flex h-screen w-full overflow-hidden font-sans bg-brand-light">
       <NotificationToastContainer />
       <Sidebar

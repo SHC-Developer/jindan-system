@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTodayWorkLog, useMyWorkLogs } from '../../hooks/useWorkLog';
 import { useLeaveDays } from '../../hooks/useLeaveDays';
 import { createWorkLog, clockOutWorkLog } from '../../lib/worklog';
@@ -153,10 +153,21 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     [currentUser.uid, leaveDateKeys, approvedDateKeys]
   );
 
-  const pendingLeaveCount = [...leaveDateKeys].filter((k) => !approvedDateKeys.has(k)).length;
+  const pendingLeaveKeys = useMemo(
+    () => new Set([...leaveDateKeys].filter((k) => !approvedDateKeys.has(k))),
+    [leaveDateKeys, approvedDateKeys]
+  );
+  const [lastRequestedPendingKeys, setLastRequestedPendingKeys] = useState<Set<string>>(new Set());
+  const pendingNotYetRequested = useMemo(
+    () => [...pendingLeaveKeys].filter((k) => !lastRequestedPendingKeys.has(k)),
+    [pendingLeaveKeys, lastRequestedPendingKeys]
+  );
+  const showLeaveRequestButton = pendingNotYetRequested.length > 0;
+  const showLeaveRequestDone = lastRequestedPendingKeys.size > 0 && pendingNotYetRequested.length === 0;
+
   const [leaveRequestSending, setLeaveRequestSending] = useState(false);
   const handleLeaveRequest = useCallback(async () => {
-    if (pendingLeaveCount === 0 || leaveRequestSending) return;
+    if (pendingLeaveKeys.size === 0 || leaveRequestSending) return;
     setLeaveRequestSending(true);
     try {
       await notifyAdmins({
@@ -164,12 +175,13 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
         title: '연차 승인 요청',
         leaveUserDisplayName: currentUser.displayName ?? undefined,
       });
+      setLastRequestedPendingKeys(new Set(pendingLeaveKeys));
     } catch (err) {
       console.error(err);
     } finally {
       setLeaveRequestSending(false);
     }
-  }, [pendingLeaveCount, leaveRequestSending, currentUser.displayName]);
+  }, [pendingLeaveKeys, leaveRequestSending, currentUser.displayName]);
 
   if (loading) {
     return (
@@ -446,7 +458,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
               })}
             </div>
             <p className="text-xs text-gray-500 mt-3">날짜를 클릭하면 연차로 지정/해제됩니다. 선택 후 아래 버튼으로 관리자에게 승인 요청을 보내세요.</p>
-            {pendingLeaveCount > 0 && (
+            {showLeaveRequestButton && (
               <div className="mt-3 pt-3 border-t border-gray-200">
                 <button
                   type="button"
@@ -457,9 +469,14 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                   {leaveRequestSending ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : null}
-                  연차 요청 ({pendingLeaveCount}일)
+                  연차 요청 ({pendingNotYetRequested.length}일)
                 </button>
               </div>
+            )}
+            {showLeaveRequestDone && (
+              <p className="mt-3 pt-3 border-t border-gray-200 text-sm text-brand-main font-medium text-center">
+                연차 요청이 완료되었습니다.
+              </p>
             )}
           </div>
         </div>

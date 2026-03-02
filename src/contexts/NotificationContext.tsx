@@ -7,11 +7,18 @@ export interface NotificationContextValue {
   deleteNotification: (notificationId: string) => Promise<void>;
   deleteAllNotifications: () => Promise<void>;
   isAdmin: boolean;
+  /** 출퇴근/연차 알림 클릭 시 호출 (URL + activeSection 동기 이동) */
+  onNavigateToWorkLog?: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
 
-export function NotificationProvider({ children }: { children: React.ReactNode }) {
+interface NotificationProviderProps {
+  children: React.ReactNode;
+  onNavigateToWorkLog?: () => void;
+}
+
+export function NotificationProvider({ children, onNavigateToWorkLog }: NotificationProviderProps) {
   const { user } = useAuth();
   const { addToast } = useToastContext();
   const uid = user?.uid ?? null;
@@ -43,6 +50,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     deleteNotification,
     deleteAllNotifications,
     isAdmin: user?.role === 'admin',
+    onNavigateToWorkLog,
   };
 
   return (
