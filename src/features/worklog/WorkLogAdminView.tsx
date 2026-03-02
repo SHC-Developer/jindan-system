@@ -190,8 +190,9 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
       await unapproveLeaveDay(userId, dateKey);
       setLeaveByUser((prev) => {
         const next = new Map(prev);
-        const list = next.get(userId)?.map((i) => (i.dateKey === dateKey ? { ...i, status: 'pending' } : i)) ?? [];
-        next.set(userId, list);
+        const list = (next.get(userId) ?? []).filter((i) => i.dateKey !== dateKey);
+        if (list.length === 0) next.delete(userId);
+        else next.set(userId, list);
         return next;
       });
     } catch (err) {

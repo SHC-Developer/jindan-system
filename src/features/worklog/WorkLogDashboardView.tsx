@@ -134,6 +134,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     (log) =>
       log.status === 'approved' &&
       isTardySeoul(log.clockInAt) &&
+      !holidayDateKeys.has(toDateKeySeoul(log.clockInAt)) &&
       log.clockInAt >= weekStart &&
       log.clockInAt <= weekEnd
   ).length;

@@ -35,7 +35,7 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // 연차: 본인 create/delete(pending만). 관리자 read/update(승인). 승인된 연차는 직원이 삭제 불가
+    // 연차: 본인 create/delete(pending만). 관리자 read/update(승인)/delete(승인취소). 승인된 연차는 직원이 삭제 불가
     match /users/{userId}/leaveDays/{dateKey} {
       allow read: if request.auth != null
         && (request.auth.uid == userId
@@ -44,8 +44,9 @@ service cloud.firestore {
       allow update: if request.auth != null
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       allow delete: if request.auth != null
-        && request.auth.uid == userId
-        && (!('status' in resource.data) || resource.data.status != 'approved');
+        && (request.auth.uid == userId
+            && (!('status' in resource.data) || resource.data.status != 'approved')
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
     // 채팅: 로그인한 사용자만 프로젝트/중메뉴/메시지 읽기·쓰기

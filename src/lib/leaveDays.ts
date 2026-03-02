@@ -34,14 +34,10 @@ export async function approveLeaveDay(
   });
 }
 
-/** 관리자: 연차 승인 취소 → pending으로 되돌림 (직원이 다시 수정 가능) */
+/** 관리자: 연차 승인 취소 → 해당 연차 문서 삭제 (직원 캘린더에서도 선택 해제됨) */
 export async function unapproveLeaveDay(userId: string, dateKey: string): Promise<void> {
   const ref = getUserLeaveDayRef(userId, dateKey);
-  await updateDoc(ref, {
-    status: 'pending',
-    approvedBy: null,
-    approvedAt: null,
-  });
+  await deleteDoc(ref);
 }
 
 function docToItem(docId: string, data: Record<string, unknown>): LeaveDayItem {
