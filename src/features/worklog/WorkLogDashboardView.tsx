@@ -146,7 +146,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       if (leaveDateKeys.has(dateKey)) {
         removeLeaveDay(currentUser.uid, dateKey).catch(console.error);
       } else {
-        addLeaveDay(currentUser.uid, dateKey).catch(console.error);
+        addLeaveDay(currentUser.uid, dateKey, currentUser.displayName).catch(console.error);
       }
     },
     [currentUser.uid, leaveDateKeys, approvedDateKeys]

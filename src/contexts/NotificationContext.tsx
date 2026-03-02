@@ -19,15 +19,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const { deleteNotification, deleteAllNotifications } = useNotifications({
     uid,
     onNew: (n) => {
-      const message =
-        n.type === 'task_completed'
-          ? `${n.completedByDisplayName ?? '직원'}이(가) 업무를 완료했습니다.`
-          : '새 업무가 할당되었습니다.';
+      let message: string;
+      if (n.type === 'task_completed') {
+        message = `${n.completedByDisplayName ?? '직원'}이(가) 업무를 완료했습니다.`;
+      } else if (n.type === 'worklog_clockin') {
+        message = `${n.clockInByDisplayName ?? '직원'}이(가) 출근했습니다. 승인해 주세요.`;
+      } else if (n.type === 'leave_approval_request') {
+        message = `${n.leaveUserDisplayName ?? '직원'}이(가) 연차 승인을 요청했습니다.`;
+      } else {
+        message = '새 업무가 할당되었습니다.';
+      }
       addToast({
         title: n.title,
         message,
         taskId: n.taskId,
         notificationId: n.id,
+        notificationType: n.type,
       });
     },
   });

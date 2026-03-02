@@ -21,6 +21,9 @@ function docToNotification(docId: string, data: Record<string, unknown>): TaskNo
     read: Boolean(data.read),
     createdAt: typeof createdAt === 'number' ? createdAt : Date.now(),
     completedByDisplayName: data.completedByDisplayName as string | undefined,
+    clockInByDisplayName: data.clockInByDisplayName as string | undefined,
+    leaveUserDisplayName: data.leaveUserDisplayName as string | undefined,
+    leaveDateKey: data.leaveDateKey as string | undefined,
   };
 }
 

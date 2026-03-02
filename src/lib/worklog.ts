@@ -1,8 +1,9 @@
 import { addDoc, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { getWorkLogsRef, getWorkLogRef } from './firestore-paths';
+import { notifyAdmins } from './notifications';
 import type { WorkLogStatus } from '../types/worklog';
 
-/** 출근하기: status 'pending'으로 기록 생성. 관리자 승인 전까지 "승인 대기중" 표시됨. */
+/** 출근하기: status 'pending'으로 기록 생성. 관리자 승인 전까지 "승인 대기중" 표시됨. 관리자에게 알림 전송. */
 export async function createWorkLog(
   userId: string,
   userDisplayName: string | null,
@@ -19,6 +20,11 @@ export async function createWorkLog(
     approvedBy: null,
     approvedAt: null,
     tardinessReason: tardinessReason ?? null,
+  });
+  await notifyAdmins({
+    type: 'worklog_clockin',
+    title: '출근 승인 요청',
+    clockInByDisplayName: userDisplayName ?? undefined,
   });
   return docRef.id;
 }

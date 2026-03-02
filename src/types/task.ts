@@ -31,7 +31,12 @@ export interface Task {
   submissionNote: string | null;
 }
 
-export type NotificationType = 'task_assigned' | 'task_completed' | 'task_revision';
+export type NotificationType =
+  | 'task_assigned'
+  | 'task_completed'
+  | 'task_revision'
+  | 'worklog_clockin'
+  | 'leave_approval_request';
 
 export interface TaskNotification {
   id: string;
@@ -41,4 +46,9 @@ export interface TaskNotification {
   read: boolean;
   createdAt: number;
   completedByDisplayName?: string;
+  /** 출근 알림 시 출근한 직원 이름 */
+  clockInByDisplayName?: string;
+  /** 연차 승인 요청 시 요청한 직원 이름 */
+  leaveUserDisplayName?: string;
+  leaveDateKey?: string;
 }

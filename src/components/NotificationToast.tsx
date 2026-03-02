@@ -65,7 +65,9 @@ export function NotificationToastContainer() {
   };
 
   const handleClick = (item: ToastItem) => {
-    if (item.taskId) {
+    if (item.notificationType === 'worklog_clockin' || item.notificationType === 'leave_approval_request') {
+      navigate('/work-log');
+    } else if (item.taskId) {
       navigate(`/task/${item.taskId}`);
     }
     handleDismiss(item);

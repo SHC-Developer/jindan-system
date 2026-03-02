@@ -3,12 +3,14 @@ import { createPortal } from 'react-dom';
 import { usePendingWorkLogs, useAllWorkLogs } from '../../hooks/useWorkLog';
 import { useUserList } from '../../hooks/useUserList';
 import { approveWorkLog, deleteWorkLog } from '../../lib/worklog';
-import { getLeaveDaysForUser, getLeaveDaysWithStatusForUser, approveLeaveDay } from '../../lib/leaveDays';
+import { getLeaveDaysForUser, getLeaveDaysWithStatusForUser, approveLeaveDay, unapproveLeaveDay } from '../../lib/leaveDays';
+import { getHolidayDateKeys } from '../../lib/kr-holidays';
 import {
   toDateKeySeoul,
   isTardySeoul,
   getTardinessMinutesSeoul,
   formatTardinessNote,
+  getDayOfWeekSeoul,
 } from '../../lib/datetime-seoul';
 import type { AppUser } from '../../types/user';
 import type { WorkLogEntry } from '../../types/worklog';
@@ -43,10 +45,21 @@ function formatDurationMs(ms: number): string {
   return `${h}h ${m}m`;
 }
 
-function getAttendanceStatus(log: WorkLogEntry): string {
+/** 주말·공휴일은 출근 시각과 관계없이 정상출근. holidayDateKeys는 선택(관리자 DB용). */
+function getAttendanceStatus(
+  log: WorkLogEntry,
+  holidayDateKeys?: Set<string>
+): string {
   if (log.status === 'pending') return '승인 대기';
   if (log.status === 'rejected') return '승인 거부';
-  if (log.status === 'approved' && isTardySeoul(log.clockInAt)) return '지각';
+  if (log.status === 'approved') {
+    const dateKey = toDateKeySeoul(log.clockInAt);
+    const day = getDayOfWeekSeoul(log.clockInAt);
+    const isWeekend = day === 0 || day === 6;
+    const isHoliday = holidayDateKeys?.has(dateKey) ?? false;
+    if (isWeekend || isHoliday) return '정상출근';
+    if (isTardySeoul(log.clockInAt)) return '지각';
+  }
   return '정상출근';
 }
 
@@ -84,8 +97,9 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
   const [leaveDaysByUser, setLeaveDaysByUser] = useState<Map<string, Set<string>>>(new Map());
-  const [pendingLeaveByUser, setPendingLeaveByUser] = useState<Map<string, { dateKey: string; status: string }[]>>(new Map());
+  const [leaveByUser, setLeaveByUser] = useState<Map<string, { dateKey: string; status: string }[]>>(new Map());
   const [leaveApprovalLoading, setLeaveApprovalLoading] = useState<string | null>(null);
+  const [holidayDateKeys, setHolidayDateKeys] = useState<Set<string>>(new Set());
   const databaseFilterRef = React.useRef<HTMLDivElement>(null);
   const databaseFilterDropdownRef = React.useRef<HTMLDivElement>(null);
 
@@ -122,7 +136,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
 
   useEffect(() => {
     if (users.length === 0) {
-      setPendingLeaveByUser(new Map());
+      setLeaveByUser(new Map());
       return;
     }
     let cancelled = false;
@@ -135,15 +149,34 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     ).then((results) => {
       if (cancelled) return;
       results.forEach(({ uid, items }) => {
-        const pending = items.filter((i) => i.status === 'pending');
-        if (pending.length > 0) map.set(uid, pending);
+        if (items.length > 0) map.set(uid, items);
       });
-      setPendingLeaveByUser(map);
+      setLeaveByUser(map);
     });
     return () => {
       cancelled = true;
     };
   }, [users.map((u) => u.uid).join(',')]);
+
+  useEffect(() => {
+    const startYear = parseInt(startDate.slice(0, 4), 10);
+    const endYear = parseInt(endDate.slice(0, 4), 10);
+    const years = new Set<number>();
+    for (let y = startYear; y <= endYear; y++) years.add(y);
+    const thisYear = new Date().getFullYear();
+    years.add(thisYear);
+    let cancelled = false;
+    const all = new Set<string>();
+    Promise.all([...years].map((y) => getHolidayDateKeys(y)))
+      .then((sets) => {
+        if (cancelled) return;
+        sets.forEach((s) => s.forEach((k) => all.add(k)));
+        setHolidayDateKeys(all);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [startDate, endDate]);
 
   const handleApproveLeave = async (userId: string, dateKey: string) => {
     const key = `${userId}:${dateKey}`;
@@ -151,11 +184,29 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     setLeaveApprovalLoading(key);
     try {
       await approveLeaveDay(userId, dateKey, currentUser.uid);
-      setPendingLeaveByUser((prev) => {
+      setLeaveByUser((prev) => {
         const next = new Map(prev);
-        const list = next.get(userId)?.filter((i) => i.dateKey !== dateKey) ?? [];
-        if (list.length === 0) next.delete(userId);
-        else next.set(userId, list);
+        const list = next.get(userId)?.map((i) => (i.dateKey === dateKey ? { ...i, status: 'approved' } : i)) ?? [];
+        next.set(userId, list);
+        return next;
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLeaveApprovalLoading(null);
+    }
+  };
+
+  const handleUnapproveLeave = async (userId: string, dateKey: string) => {
+    const key = `${userId}:${dateKey}`;
+    if (leaveApprovalLoading) return;
+    setLeaveApprovalLoading(key);
+    try {
+      await unapproveLeaveDay(userId, dateKey);
+      setLeaveByUser((prev) => {
+        const next = new Map(prev);
+        const list = next.get(userId)?.map((i) => (i.dateKey === dateKey ? { ...i, status: 'pending' } : i)) ?? [];
+        next.set(userId, list);
         return next;
       });
     } catch (err) {
@@ -187,7 +238,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
       const leaveKeys = leaveDaysByUser.get(u.uid);
       const isLeaveToday = leaveKeys?.has(todayKey) ?? false;
       if (todayLog) {
-        const status = getAttendanceStatus(todayLog);
+        const status = getAttendanceStatus(todayLog, holidayDateKeys);
         const note = status === '지각' ? formatTardinessNote(getTardinessMinutesSeoul(todayLog.clockInAt)) : '';
         return {
           userId: u.uid,
@@ -214,7 +265,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
         note: '',
       };
     });
-  }, [users, allLogs, todayKey, leaveDaysByUser]);
+  }, [users, allLogs, todayKey, leaveDaysByUser, holidayDateKeys]);
 
   const dbRows = useMemo((): DbRow[] => {
     const filteredLogs = allLogs.filter((log) => {
@@ -231,7 +282,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     });
     const rows: DbRow[] = filteredLogs.map((log) => {
       const key = toDateKeySeoul(log.clockInAt);
-      const status = getAttendanceStatus(log);
+      const status = getAttendanceStatus(log, holidayDateKeys);
       const note = status === '지각' ? formatTardinessNote(getTardinessMinutesSeoul(log.clockInAt)) : '';
       const totalMs =
         log.clockOutAt != null ? log.clockOutAt - log.clockInAt : null;
@@ -275,7 +326,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     });
     rows.sort((a, b) => (b.dateKey > a.dateKey ? 1 : -1));
     return rows;
-  }, [allLogs, startDate, endDate, databaseAssigneeFilter, userIdsToFetchLeave, leaveDaysByUser, users]);
+  }, [allLogs, startDate, endDate, databaseAssigneeFilter, userIdsToFetchLeave, leaveDaysByUser, users, holidayDateKeys]);
 
   const handleDatabaseFilterToggle = (uid: string) => {
     const allIds = users.map((u) => u.uid);
@@ -291,18 +342,22 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     setDatabaseAssigneeFilter(next.size === allIds.length ? null : next);
   };
 
-  const handleResetToday = async () => {
+  const handleResetInRange = async () => {
     if (!selectedUserId || resetting) return;
-    const todayLog = allLogs.find(
-      (log) => log.userId === selectedUserId && toDateKeySeoul(log.clockInAt) === todayKey
+    const toDelete = allLogs.filter(
+      (log) =>
+        log.userId === selectedUserId &&
+        toDateKeySeoul(log.clockInAt) >= startDate &&
+        toDateKeySeoul(log.clockInAt) <= endDate
     );
-    if (!todayLog) {
-      alert('해당 직원의 오늘 출근 기록이 없습니다.');
+    if (toDelete.length === 0) {
+      alert('선택한 기간에 해당 직원의 출퇴근 기록이 없습니다.');
       return;
     }
+    if (!confirm(`선택한 기간(${startDate} ~ ${endDate}) 내 해당 직원의 출퇴근 기록 ${toDelete.length}건을 모두 삭제합니다. 계속할까요?`)) return;
     setResetting(true);
     try {
-      await deleteWorkLog(todayLog.id);
+      await Promise.all(toDelete.map((log) => deleteWorkLog(log.id)));
     } catch (err) {
       console.error(err);
     } finally {
@@ -523,7 +578,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
               <>
                 <div className="flex flex-wrap items-center gap-4">
                   <div ref={databaseFilterRef} className="relative inline-flex items-center gap-2">
-                    <span className="text-sm text-gray-700">담당자</span>
+                    <span className="text-sm text-gray-700">담당자 (필터)</span>
                     <button
                       type="button"
                       onClick={() => {
@@ -589,8 +644,19 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                       className="border border-gray-300 rounded px-2 py-1 text-sm"
                     />
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-main text-white text-sm font-medium hover:opacity-90"
+                  >
+                    <Download size={14} />
+                    엑셀 추출
+                  </button>
+                </div>
+                <div className="flex flex-wrap items-center gap-4 py-3 border-y border-gray-200">
+                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">리셋 (기간 내 해당 직원 기록 삭제)</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-700">직원 선택 (리셋용)</span>
+                    <span className="text-sm text-gray-700">직원 선택</span>
                     <select
                       value={selectedUserId ?? ''}
                       onChange={(e) => setSelectedUserId(e.target.value || null)}
@@ -605,7 +671,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                     </select>
                     <button
                       type="button"
-                      onClick={handleResetToday}
+                      onClick={handleResetInRange}
                       disabled={!selectedUserId || resetting}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500 text-amber-700 text-sm font-medium hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -613,14 +679,6 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                       출근 상태 리셋
                     </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleExportExcel}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-main text-white text-sm font-medium hover:opacity-90"
-                  >
-                    <Download size={14} />
-                    엑셀 추출
-                  </button>
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto shadow-sm">
@@ -700,8 +758,8 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
               <p className="px-5 pb-4 text-sm text-gray-500 flex items-center gap-2">
                 <Loader2 size={14} className="animate-spin" /> 불러오는 중…
               </p>
-            ) : Array.from(pendingLeaveByUser.entries()).length === 0 ? (
-              <p className="px-5 py-8 text-center text-gray-500">승인 대기 중인 연차가 없습니다.</p>
+            ) : Array.from(leaveByUser.entries()).flatMap(([, items]) => items).length === 0 ? (
+              <p className="px-5 py-8 text-center text-gray-500">등록된 연차가 없습니다.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
@@ -709,32 +767,57 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="text-left py-3 px-4 font-medium text-gray-700">직원</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">연차 일자</th>
-                      <th className="text-center py-3 px-4 font-medium text-gray-700 min-w-[5.5rem]">연차승인</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-700">상태</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-700 min-w-[5.5rem]">연차승인 / 승인취소</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {Array.from(pendingLeaveByUser.entries()).flatMap(([uid, items]) =>
+                    {Array.from(leaveByUser.entries()).flatMap(([uid, items]) =>
                       items.map((item) => {
                         const key = `${uid}:${item.dateKey}`;
                         const displayName = users.find((u) => u.uid === uid)?.displayName ?? uid.slice(0, 8);
+                        const isApproved = item.status === 'approved';
                         return (
                           <tr key={key} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50">
                             <td className="py-3 px-4 font-medium text-gray-800">{displayName}</td>
                             <td className="py-3 px-4 text-gray-700">{formatDateKeyDisplay(item.dateKey)}</td>
                             <td className="py-3 px-4 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleApproveLeave(uid, item.dateKey)}
-                                disabled={leaveApprovalLoading === key}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-main text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+                              <span
+                                className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                                  isApproved ? 'bg-brand-sub/20 text-brand-dark' : 'bg-amber-100 text-amber-800'
+                                }`}
                               >
-                                {leaveApprovalLoading === key ? (
-                                  <Loader2 size={14} className="animate-spin flex-shrink-0" />
-                                ) : (
-                                  <CheckCircle size={14} className="flex-shrink-0" />
-                                )}
-                                <span>연차승인</span>
-                              </button>
+                                {isApproved ? '승인됨' : '대기'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              {isApproved ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleUnapproveLeave(uid, item.dateKey)}
+                                  disabled={leaveApprovalLoading === key}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500 text-amber-700 text-sm font-medium hover:bg-amber-50 disabled:opacity-50 whitespace-nowrap"
+                                >
+                                  {leaveApprovalLoading === key ? (
+                                    <Loader2 size={14} className="animate-spin flex-shrink-0" />
+                                  ) : null}
+                                  <span>승인취소</span>
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleApproveLeave(uid, item.dateKey)}
+                                  disabled={leaveApprovalLoading === key}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-main text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
+                                >
+                                  {leaveApprovalLoading === key ? (
+                                    <Loader2 size={14} className="animate-spin flex-shrink-0" />
+                                  ) : (
+                                    <CheckCircle size={14} className="flex-shrink-0" />
+                                  )}
+                                  <span>연차승인</span>
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
