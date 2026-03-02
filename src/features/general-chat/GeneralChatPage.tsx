@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
+  Search,
   Paperclip,
   Send,
   FileText,
@@ -260,6 +261,22 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
           >
             <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileInputChange} />
             <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileInputChange} />
+
+            <header className="h-14 border-b border-gray-200 flex items-center justify-between px-4 bg-white flex-shrink-0">
+              <div className="flex items-center min-w-0">
+                <span className="font-medium text-brand-main text-sm">공지사항/일반채팅</span>
+              </div>
+              <div className="flex items-center min-w-0 flex-1 justify-end ml-4">
+                <div className="relative hidden md:block w-full max-w-md">
+                  <Search size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="검색"
+                    className="pl-9 pr-4 py-1.5 bg-gray-100 border-none rounded-md text-sm focus:ring-2 focus:ring-brand-sub/50 outline-none w-full transition-all"
+                  />
+                </div>
+              </div>
+            </header>
 
             {isDragging && (
               <div className="absolute inset-0 z-30 bg-brand-sub/10 border-2 border-dashed border-brand-sub rounded-lg flex items-center justify-center pointer-events-none">

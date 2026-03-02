@@ -15,6 +15,7 @@ import {
   getWeekRangeSeoul,
 } from '../../lib/datetime-seoul';
 import { getHolidayDateKeys } from '../../lib/kr-holidays';
+import { useToastContext } from '../../contexts/ToastContext';
 import type { AppUser } from '../../types/user';
 import { Loader2, Clock, X } from 'lucide-react';
 
@@ -48,6 +49,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const [weekHolidayLoaded, setWeekHolidayLoaded] = useState(false);
   const [overtimeLoading, setOvertimeLoading] = useState<string | null>(null);
 
+  const { addToast } = useToastContext();
   const { todayLog, loading: todayLoading, error: todayError } = useTodayWorkLog(currentUser.uid);
   const { workLogs, loading: listLoading, error: listError } = useMyWorkLogs(currentUser.uid);
   const { leaveDateKeys, approvedDateKeys, loading: leaveLoading } = useLeaveDays(currentUser.uid);
@@ -96,9 +98,16 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     }
     setClockInLoading(true);
     createWorkLog(currentUser.uid, currentUser.displayName, null)
+      .then(() => {
+        const name = currentUser.displayName ?? '직원';
+        addToast({
+          title: '출근 완료',
+          message: `${name}님, 출근이 완료되었습니다. 오늘도 좋은 하루 되세요!`,
+        });
+      })
       .catch(console.error)
       .finally(() => setClockInLoading(false));
-  }, [todayLog, clockInLoading, isTardyNow, currentUser.uid, currentUser.displayName]);
+  }, [todayLog, clockInLoading, isTardyNow, currentUser.uid, currentUser.displayName, addToast]);
 
   const handleTardinessSubmit = useCallback(() => {
     const reason = tardinessReason.trim();
@@ -108,10 +117,15 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       .then(() => {
         setTardinessModalOpen(false);
         setTardinessReason('');
+        const name = currentUser.displayName ?? '직원';
+        addToast({
+          title: '출근 완료',
+          message: `${name}님, 출근이 완료되었습니다. 오늘도 좋은 하루 되세요!`,
+        });
       })
       .catch(console.error)
       .finally(() => setClockInLoading(false));
-  }, [tardinessReason, clockInLoading, currentUser.uid, currentUser.displayName]);
+  }, [tardinessReason, clockInLoading, currentUser.uid, currentUser.displayName, addToast]);
 
   const handleClockOut = useCallback(
     async (logId: string) => {

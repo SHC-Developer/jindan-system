@@ -44,4 +44,7 @@ export interface SidebarProps {
   onUpdateProjectName: (projectId: string, name: string) => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;
   onAfterRename?: (projectId: string, newName: string) => void;
+  /** 프로젝트 메뉴 접기/펼치기. 전달 시 사이드바 상태가 화면 이동 시에도 유지됨 */
+  isProjectsExpanded?: boolean;
+  setProjectsExpanded?: (expanded: boolean) => void;
 }

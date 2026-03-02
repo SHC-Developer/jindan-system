@@ -31,24 +31,28 @@ function buildSidebarProps(
   setSelectedMenuId: (m: MiddleMenuId) => void,
   activeSection: ActiveSection,
   setActiveSection: (s: ActiveSection) => void,
+  isProjectsExpanded: boolean,
+  setIsProjectsExpanded: (expanded: boolean) => void,
   navigate: (path: string, opts?: { replace?: boolean }) => void,
   handleLogout: () => void,
   onCreateProject: (name: string) => Promise<Project>,
   onUpdateProjectName: (projectId: string, name: string) => Promise<void>,
   onDeleteProject: (projectId: string) => Promise<void>
 ) {
-    return {
+  return {
   projects,
   projectsLoading,
   projectsError,
   selectedProject,
   setSelectedProject,
-    selectedMenu: selectedMenuId,
-    setSelectedMenu: setSelectedMenuId,
+  selectedMenu: selectedMenuId,
+  setSelectedMenu: setSelectedMenuId,
   activeSection,
   setActiveSection,
+  isProjectsExpanded,
+  setProjectsExpanded: setIsProjectsExpanded,
   user,
-    onLogout: handleLogout,
+  onLogout: handleLogout,
     onNavigateToGeneralChat: () => {
       navigate('/general-chat');
       setActiveSection('general-chat');
@@ -99,6 +103,7 @@ export default function App() {
   const [selectedMenuId, setSelectedMenuId] = useState<MiddleMenuId>('field-survey');
   const [activeTab, setActiveTab] = useState<'chat' | 'automation'>('chat');
   const [activeSection, setActiveSection] = useState<ActiveSection>('general-chat');
+  const [isProjectsExpanded, setIsProjectsExpanded] = useState(true);
 
   const selectedMenuData = MIDDLE_MENUS.find((m) => m.id === selectedMenuId) ?? MIDDLE_MENUS[0];
   const isTaskDetailPage = /^\/task\/[^/]+$/.test(location.pathname);
@@ -181,6 +186,8 @@ export default function App() {
     setSelectedMenuId,
     activeSection,
     setActiveSection,
+    isProjectsExpanded,
+    setIsProjectsExpanded,
     navigate,
     handleLogout,
     onCreateProject,

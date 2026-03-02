@@ -44,8 +44,13 @@ export function Sidebar({
   onUpdateProjectName,
   onDeleteProject,
   onAfterRename,
+  isProjectsExpanded: isProjectsExpandedProp,
+  setProjectsExpanded: setProjectsExpandedProp,
 }: SidebarProps) {
-  const [isProjectsExpanded, setIsProjectsExpanded] = useState(true);
+  const [localExpanded, setLocalExpanded] = useState(true);
+  const isProjectsExpanded =
+    setProjectsExpandedProp != null ? (isProjectsExpandedProp ?? true) : localExpanded;
+  const setIsProjectsExpanded = setProjectsExpandedProp ?? setLocalExpanded;
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;

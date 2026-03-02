@@ -1,8 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Search,
-  Bell,
-  Filter,
   Paperclip,
   Send,
   ChevronRight,
@@ -240,22 +238,15 @@ export function ProjectChatContent({
             <span className="font-medium text-brand-main">{selectedMenuData.name}</span>
           </div>
         </div>
-        <div className="flex items-center space-x-3">
-          <div className="relative hidden md:block">
+        <div className="flex items-center min-w-0 flex-1 justify-end ml-4">
+          <div className="relative hidden md:block w-full max-w-md">
             <Search size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
               placeholder="검색"
-              className="pl-9 pr-4 py-1.5 bg-gray-100 border-none rounded-md text-sm focus:ring-2 focus:ring-brand-sub/50 outline-none w-48 transition-all"
+              className="pl-9 pr-4 py-1.5 bg-gray-100 border-none rounded-md text-sm focus:ring-2 focus:ring-brand-sub/50 outline-none w-full transition-all"
             />
           </div>
-          <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-full relative">
-            <Bell size={18} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white" />
-          </button>
-          <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-full">
-            <Filter size={18} />
-          </button>
         </div>
       </header>
 

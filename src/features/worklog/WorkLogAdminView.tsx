@@ -14,7 +14,7 @@ import {
 } from '../../lib/datetime-seoul';
 import type { AppUser } from '../../types/user';
 import type { WorkLogEntry } from '../../types/worklog';
-import { Loader2, Clock, Database, Filter, Download, RotateCcw, CalendarCheck, Users } from 'lucide-react';
+import { Loader2, Clock, CheckCircle, Database, Filter, Download, RotateCcw, CalendarCheck, Users } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
