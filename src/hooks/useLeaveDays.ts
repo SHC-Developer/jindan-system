@@ -1,27 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { subscribeLeaveDays } from '../lib/leaveDays';
 
-/** 본인 연차 날짜(dateKey 집합) 실시간. dateKey = 서울 기준 YYYY-MM-DD */
+/** 본인 연차 날짜 실시간. dateKey 집합 + 승인된 연차 집합(클릭 해제 불가) */
 export function useLeaveDays(userId: string | null): {
   leaveDateKeys: Set<string>;
+  approvedDateKeys: Set<string>;
   loading: boolean;
   error: string | null;
 } {
-  const [leaveDateKeys, setLeaveDateKeys] = useState<Set<string>>(new Set());
+  const [items, setItems] = useState<{ dateKey: string; status: 'pending' | 'approved' }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) {
-      setLeaveDateKeys(new Set());
+      setItems([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     const unsub = subscribeLeaveDays(
       userId,
-      (keys) => {
-        setLeaveDateKeys(new Set(keys));
+      (list) => {
+        setItems(list);
         setLoading(false);
       },
       (err) => {
@@ -32,5 +33,15 @@ export function useLeaveDays(userId: string | null): {
     return () => unsub();
   }, [userId]);
 
-  return { leaveDateKeys, loading, error };
+  const { leaveDateKeys, approvedDateKeys } = useMemo(() => {
+    const all = new Set<string>();
+    const approved = new Set<string>();
+    items.forEach(({ dateKey, status }) => {
+      all.add(dateKey);
+      if (status === 'approved') approved.add(dateKey);
+    });
+    return { leaveDateKeys: all, approvedDateKeys: approved };
+  }, [items]);
+
+  return { leaveDateKeys, approvedDateKeys, loading, error };
 }

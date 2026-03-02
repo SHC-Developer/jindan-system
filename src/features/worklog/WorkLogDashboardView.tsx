@@ -11,6 +11,7 @@ import {
   isTardySeoul,
   getWeekRangeSeoul,
 } from '../../lib/datetime-seoul';
+import { getHolidayDateKeys } from '../../lib/kr-holidays';
 import type { AppUser } from '../../types/user';
 import { Loader2, Clock, X } from 'lucide-react';
 
@@ -39,15 +40,21 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const [tardinessModalOpen, setTardinessModalOpen] = useState(false);
   const [tardinessReason, setTardinessReason] = useState('');
   const [calendarMonth, setCalendarMonth] = useState(() => toDateKeySeoul(Date.now()).slice(0, 7)); // YYYY-MM
+  const [holidayDateKeys, setHolidayDateKeys] = useState<Set<string>>(new Set());
 
   const { todayLog, loading: todayLoading, error: todayError } = useTodayWorkLog(currentUser.uid);
   const { workLogs, loading: listLoading, error: listError } = useMyWorkLogs(currentUser.uid);
-  const { leaveDateKeys, loading: leaveLoading } = useLeaveDays(currentUser.uid);
+  const { leaveDateKeys, approvedDateKeys, loading: leaveLoading } = useLeaveDays(currentUser.uid);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    const year = parseInt(calendarMonth.slice(0, 4), 10);
+    getHolidayDateKeys(year).then(setHolidayDateKeys);
+  }, [calendarMonth]);
 
   const todayKey = toDateKeySeoul(now);
   const isWeekday = isWeekdaySeoul(now);
@@ -100,7 +107,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     : todayLog.status === 'pending' ? '승인 대기중'
     : '정상 근무';
 
-  const showClockInButton = isWeekday && !isLeaveToday && !todayLog && !clockInLoading;
+  const showClockInButton = !isLeaveToday && !todayLog && !clockInLoading;
   const canClockOut = todayLog?.status === 'approved' && todayLog.clockOutAt == null;
 
   const todayWorkMs =
@@ -134,13 +141,14 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
 
   const toggleLeaveDay = useCallback(
     (dateKey: string) => {
+      if (approvedDateKeys.has(dateKey)) return;
       if (leaveDateKeys.has(dateKey)) {
         removeLeaveDay(currentUser.uid, dateKey).catch(console.error);
       } else {
         addLeaveDay(currentUser.uid, dateKey).catch(console.error);
       }
     },
-    [currentUser.uid, leaveDateKeys]
+    [currentUser.uid, leaveDateKeys, approvedDateKeys]
   );
 
   if (loading) {
@@ -240,9 +248,6 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                     </>
                   )}
                 </button>
-              )}
-              {!isWeekday && !todayLog && (
-                <p className="text-sm text-gray-500">주말에는 출근 버튼이 표시되지 않습니다.</p>
               )}
               {isLeaveToday && !todayLog && (
                 <p className="text-sm text-brand-sub">오늘은 연차로 등록된 날입니다.</p>
@@ -373,27 +378,49 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
           </div>
           <div className="p-4">
             <div className="grid grid-cols-7 gap-1 text-center text-sm">
-              {WEEKDAY_NAMES.map((w) => (
-                <div key={w} className="py-1 font-medium text-gray-600">
+              {WEEKDAY_NAMES.map((w, i) => (
+                <div
+                  key={w}
+                  className={`py-1 font-medium ${
+                    i === 0 ? 'text-[var(--color-calendar-sun)]' : i === 6 ? 'text-[var(--color-calendar-sat)]' : 'text-gray-600'
+                  }`}
+                >
                   {w}
                 </div>
               ))}
               {calendarDays.map(({ dateKey, day, isCurrentMonth }) => {
                 const isLeave = leaveDateKeys.has(dateKey);
+                const isApproved = approvedDateKeys.has(dateKey);
                 const isToday = dateKey === todayKey;
+                const dayMs = new Date(dateKey + 'T12:00:00+09:00').getTime();
+                const dayOfWeek = getDayOfWeekSeoul(dayMs);
+                const isSun = dayOfWeek === 0;
+                const isSat = dayOfWeek === 6;
+                const isHoliday = holidayDateKeys.has(dateKey);
+                const isRed = isSun || isHoliday;
+                const isBlue = isSat && !isHoliday;
+                const dayColor = !isCurrentMonth
+                  ? 'text-gray-300'
+                  : isRed
+                    ? 'text-[var(--color-calendar-sun)]'
+                    : isBlue
+                      ? 'text-[var(--color-calendar-sat)]'
+                      : 'text-gray-800';
                 return (
                   <button
                     key={dateKey}
                     type="button"
                     onClick={() => toggleLeaveDay(dateKey)}
-                    className={`py-2 rounded border transition-colors ${
-                      !isCurrentMonth ? 'text-gray-300' : 'text-gray-800'
-                    } ${isLeave ? 'bg-brand-sub/30 border-brand-sub' : 'border-transparent hover:bg-gray-100'} ${
-                      isToday ? 'ring-2 ring-brand-main' : ''
-                    }`}
+                    className={`py-2 rounded border transition-colors ${dayColor} ${
+                      isLeave ? 'bg-brand-sub/30 border-brand-sub' : 'border-transparent hover:bg-gray-100'
+                    } ${isToday ? 'ring-2 ring-brand-main' : ''} ${isApproved ? 'cursor-default' : ''}`}
                   >
                     {day}
-                    {isLeave && <span className="block text-xs text-brand-dark mt-0.5">연차</span>}
+                    {isLeave && (
+                      <span className="block text-xs text-brand-dark mt-0.5">
+                        연차{isApproved ? '(승인)' : ''}
+                      </span>
+                    )}
                   </button>
                 );
               })}
