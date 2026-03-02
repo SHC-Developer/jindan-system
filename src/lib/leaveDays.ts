@@ -1,6 +1,5 @@
 import { setDoc, deleteDoc, updateDoc, onSnapshot, getDocs } from 'firebase/firestore';
 import { getUserLeaveDaysRef, getUserLeaveDayRef } from './firestore-paths';
-import { notifyAdmins } from './notifications';
 
 export type LeaveDayStatus = 'pending' | 'approved';
 
@@ -9,22 +8,10 @@ export interface LeaveDayItem {
   status: LeaveDayStatus;
 }
 
-/** 연차로 날짜 등록 (대기 상태). dateKey = 서울 기준 YYYY-MM-DD. userDisplayName 있으면 관리자에게 연차 승인 요청 알림. */
-export async function addLeaveDay(
-  userId: string,
-  dateKey: string,
-  userDisplayName?: string | null
-): Promise<void> {
+/** 연차로 날짜 등록 (대기 상태). dateKey = 서울 기준 YYYY-MM-DD. 알림은 직원이 "연차 요청" 버튼을 눌렀을 때만 전송. */
+export async function addLeaveDay(userId: string, dateKey: string): Promise<void> {
   const ref = getUserLeaveDayRef(userId, dateKey);
   await setDoc(ref, { dateKey, createdAt: Date.now(), status: 'pending' });
-  if (userDisplayName != null && userDisplayName !== '') {
-    await notifyAdmins({
-      type: 'leave_approval_request',
-      title: '연차 승인 요청',
-      leaveUserDisplayName: userDisplayName,
-      leaveDateKey: dateKey,
-    });
-  }
 }
 
 /** 연차 해제 (pending만 삭제 가능, approved는 규칙으로 차단) */

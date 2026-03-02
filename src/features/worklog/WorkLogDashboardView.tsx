@@ -3,6 +3,7 @@ import { useTodayWorkLog, useMyWorkLogs } from '../../hooks/useWorkLog';
 import { useLeaveDays } from '../../hooks/useLeaveDays';
 import { createWorkLog, clockOutWorkLog } from '../../lib/worklog';
 import { addLeaveDay, removeLeaveDay } from '../../lib/leaveDays';
+import { notifyAdmins } from '../../lib/notifications';
 import {
   toDateKeySeoul,
   getDayOfWeekSeoul,
@@ -146,11 +147,29 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       if (leaveDateKeys.has(dateKey)) {
         removeLeaveDay(currentUser.uid, dateKey).catch(console.error);
       } else {
-        addLeaveDay(currentUser.uid, dateKey, currentUser.displayName).catch(console.error);
+        addLeaveDay(currentUser.uid, dateKey).catch(console.error);
       }
     },
     [currentUser.uid, leaveDateKeys, approvedDateKeys]
   );
+
+  const pendingLeaveCount = [...leaveDateKeys].filter((k) => !approvedDateKeys.has(k)).length;
+  const [leaveRequestSending, setLeaveRequestSending] = useState(false);
+  const handleLeaveRequest = useCallback(async () => {
+    if (pendingLeaveCount === 0 || leaveRequestSending) return;
+    setLeaveRequestSending(true);
+    try {
+      await notifyAdmins({
+        type: 'leave_approval_request',
+        title: '연차 승인 요청',
+        leaveUserDisplayName: currentUser.displayName ?? undefined,
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLeaveRequestSending(false);
+    }
+  }, [pendingLeaveCount, leaveRequestSending, currentUser.displayName]);
 
   if (loading) {
     return (
@@ -426,7 +445,22 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                 );
               })}
             </div>
-            <p className="text-xs text-gray-500 mt-3">날짜를 클릭하면 연차로 지정/해제됩니다.</p>
+            <p className="text-xs text-gray-500 mt-3">날짜를 클릭하면 연차로 지정/해제됩니다. 선택 후 아래 버튼으로 관리자에게 승인 요청을 보내세요.</p>
+            {pendingLeaveCount > 0 && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={handleLeaveRequest}
+                  disabled={leaveRequestSending}
+                  className="w-full py-2 px-4 rounded-lg bg-brand-main text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {leaveRequestSending ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : null}
+                  연차 요청 ({pendingLeaveCount}일)
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

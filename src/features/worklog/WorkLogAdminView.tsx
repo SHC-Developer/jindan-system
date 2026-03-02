@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { usePendingWorkLogs, useAllWorkLogs } from '../../hooks/useWorkLog';
 import { useUserList } from '../../hooks/useUserList';
 import { approveWorkLog, deleteWorkLog } from '../../lib/worklog';
-import { getLeaveDaysForUser, getLeaveDaysWithStatusForUser, approveLeaveDay, unapproveLeaveDay } from '../../lib/leaveDays';
+import { subscribeLeaveDays, approveLeaveDay, unapproveLeaveDay } from '../../lib/leaveDays';
 import { getHolidayDateKeys } from '../../lib/kr-holidays';
 import {
   toDateKeySeoul,
@@ -96,7 +96,6 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
   const [endDate, setEndDate] = useState(() => toDateKeySeoul(Date.now()));
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
-  const [leaveDaysByUser, setLeaveDaysByUser] = useState<Map<string, Set<string>>>(new Map());
   const [leaveByUser, setLeaveByUser] = useState<Map<string, { dateKey: string; status: string }[]>>(new Map());
   const [leaveApprovalLoading, setLeaveApprovalLoading] = useState<string | null>(null);
   const [holidayDateKeys, setHolidayDateKeys] = useState<Set<string>>(new Set());
@@ -107,56 +106,42 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
   const { workLogs: allLogs, loading: allLoading, error: allError } = useAllWorkLogs();
   const { users, loading: usersLoading } = useUserList();
 
-  const userIdsToFetchLeave = useMemo(() => {
-    if (databaseAssigneeFilter === null) return users.map((u) => u.uid);
-    return [...databaseAssigneeFilter];
-  }, [databaseAssigneeFilter, users]);
-
-  useEffect(() => {
-    if (userIdsToFetchLeave.length === 0) {
-      setLeaveDaysByUser(new Map());
-      return;
-    }
-    let cancelled = false;
-    const map = new Map<string, Set<string>>();
-    Promise.all(
-      userIdsToFetchLeave.map(async (uid) => {
-        const keys = await getLeaveDaysForUser(uid);
-        return { uid, keys };
-      })
-    ).then((results) => {
-      if (cancelled) return;
-      results.forEach(({ uid, keys }) => map.set(uid, new Set(keys)));
-      setLeaveDaysByUser(new Map(map));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [userIdsToFetchLeave.join(',')]);
-
   useEffect(() => {
     if (users.length === 0) {
       setLeaveByUser(new Map());
       return;
     }
-    let cancelled = false;
-    const map = new Map<string, { dateKey: string; status: string }[]>();
-    Promise.all(
-      users.map(async (u) => {
-        const items = await getLeaveDaysWithStatusForUser(u.uid);
-        return { uid: u.uid, items };
-      })
-    ).then((results) => {
-      if (cancelled) return;
-      results.forEach(({ uid, items }) => {
-        if (items.length > 0) map.set(uid, items);
-      });
-      setLeaveByUser(map);
+    const unsubs: (() => void)[] = [];
+    users.forEach((u) => {
+      const unsub = subscribeLeaveDays(
+        u.uid,
+        (items) => {
+          setLeaveByUser((prev) => {
+            const next = new Map(prev);
+            if (items.length === 0) next.delete(u.uid);
+            else next.set(u.uid, items);
+            return next;
+          });
+        },
+        (err) => console.error('leaveDays subscription', u.uid, err)
+      );
+      unsubs.push(unsub);
     });
-    return () => {
-      cancelled = true;
-    };
+    return () => unsubs.forEach((u) => u());
   }, [users.map((u) => u.uid).join(',')]);
+
+  const leaveDaysByUser = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    leaveByUser.forEach((items, uid) => {
+      map.set(uid, new Set(items.map((i) => i.dateKey)));
+    });
+    return map;
+  }, [leaveByUser]);
+
+  const userIdsToFetchLeave = useMemo(() => {
+    if (databaseAssigneeFilter === null) return users.map((u) => u.uid);
+    return [...databaseAssigneeFilter];
+  }, [databaseAssigneeFilter, users]);
 
   useEffect(() => {
     const startYear = parseInt(startDate.slice(0, 4), 10);
