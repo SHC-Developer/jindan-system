@@ -1,0 +1,47 @@
+import type React from 'react';
+import type { Project } from './project';
+
+export type MiddleMenuId =
+  | 'quantity-extract'
+  | 'photo-album'
+  | 'report-review'
+  | 'field-survey'
+  | 'material-test';
+
+export interface MiddleMenu {
+  id: MiddleMenuId;
+  name: string;
+  icon: React.ElementType;
+}
+
+export type ActiveSection =
+  | 'project'
+  | 'work-assign'
+  | 'worklog'
+  | 'general-chat'
+  | 'cad'
+  | 'admin-page';
+
+export interface SidebarProps {
+  projects: Project[];
+  projectsLoading: boolean;
+  projectsError: string | null;
+  selectedProject: Project | null;
+  setSelectedProject: (p: Project | null) => void;
+  selectedMenu: MiddleMenuId;
+  setSelectedMenu: (m: MiddleMenuId) => void;
+  activeSection: ActiveSection;
+  setActiveSection: (s: ActiveSection) => void;
+  user: { displayName: string | null; jobTitle: string | null; role: 'admin' | 'general' };
+  onLogout: () => void;
+  onNavigateToGeneralChat?: () => void;
+  onNavigateToCad?: () => void;
+  onNavigateToProject: (project: Project) => void;
+  onNavigateToWorkAssign: () => void;
+  onNavigateToWorkLog: () => void;
+  onNavigateToAdmin: () => void;
+  onCreateProject: (name: string) => Promise<Project>;
+  onUpdateProjectName: (projectId: string, name: string) => Promise<void>;
+  onDeleteProject: (projectId: string) => Promise<void>;
+  onAfterRename?: (projectId: string, newName: string) => void;
+}

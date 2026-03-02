@@ -20,3 +20,10 @@ export interface ChatMessagePayload {
 export interface ChatMessage extends ChatMessagePayload {
   id: string;
 }
+
+/** 채팅 전송 전 첨부 대기 파일 (미리보기 URL은 이미지일 때만) */
+export interface PendingChatFile {
+  id: string;
+  file: File;
+  previewUrl?: string;
+}
