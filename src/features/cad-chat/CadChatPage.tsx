@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Search,
   Paperclip,
   Send,
   FileText,
@@ -12,8 +11,10 @@ import {
   X,
 } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
+import { useChatSearch } from '../../hooks/useChatSearch';
 import { usePinnedNotices } from '../../hooks/usePinnedNotices';
 import { formatChatDateLabel, formatChatTime } from '../../lib/chat-format';
+import { highlightText } from '../../lib/search-utils';
 import { formatFileSize } from '../../lib/storage';
 import { validateChatFile, createPendingFile } from '../../lib/chat-file';
 import { CAD_PROJECT_ID, CAD_SUBMENU_ID } from '../../constants/navigation';
@@ -21,6 +22,7 @@ import { Sidebar } from '../../components/layout/Sidebar';
 import { RightPanel } from '../../components/layout/RightPanel';
 import { ImageLightbox } from '../../components/chat/ImageLightbox';
 import { FileAttachment } from '../../components/chat/FileAttachment';
+import { ChatSearchBar } from '../../components/chat/ChatSearchBar';
 import type { AppUser } from '../../types/user';
 import type { ChatMessage } from '../../types/chat';
 import type { SidebarProps } from '../../types/layout';
@@ -53,6 +55,30 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
     projectId: CAD_PROJECT_ID,
     subMenuId: CAD_SUBMENU_ID,
   });
+
+  const chatSearch = useChatSearch(messages);
+  const { searchQuery, setSearchQuery, matchedIds, currentIndex, goPrev, goNext } = chatSearch;
+  const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const handleSearchPrev = useCallback(() => {
+    goPrev();
+    const nextIdx = currentIndex <= 0 ? matchedIds.length - 1 : currentIndex - 1;
+    const id = matchedIds[nextIdx];
+    queueMicrotask(() => {
+      const el = msgRefs.current[id];
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [goPrev, currentIndex, matchedIds]);
+
+  const handleSearchNext = useCallback(() => {
+    goNext();
+    const nextIdx = currentIndex >= matchedIds.length - 1 ? 0 : currentIndex + 1;
+    const id = matchedIds[nextIdx];
+    queueMicrotask(() => {
+      const el = msgRefs.current[id];
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [goNext, currentIndex, matchedIds]);
 
   const [inputText, setInputText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -252,13 +278,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
       <Sidebar {...sidebarProps} />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <div className="flex flex-1 min-w-0 overflow-hidden">
-          <div
-            className="flex-1 flex flex-col min-w-0 overflow-hidden bg-brand-light relative"
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          >
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-white">
             <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileInputChange} />
             <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileInputChange} />
 
@@ -266,19 +286,31 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
               <div className="flex items-center min-w-0">
                 <span className="font-medium text-brand-main text-sm">CAD</span>
               </div>
-              <div className="flex items-center min-w-0 flex-1 justify-end ml-4">
-                <div className="relative hidden md:block w-full max-w-md">
-                  <Search size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="검색"
-                    className="pl-9 pr-4 py-1.5 bg-gray-100 border-none rounded-md text-sm focus:ring-2 focus:ring-brand-sub/50 outline-none w-full transition-all"
-                  />
-                </div>
+              <div className="flex items-center min-w-0 flex-1 justify-end ml-4 hidden md:flex">
+                <ChatSearchBar
+                  value={searchQuery}
+                  onChange={setSearchQuery}
+                  matchedCount={matchedIds.length}
+                  currentIndex={currentIndex}
+                  onPrev={handleSearchPrev}
+                  onNext={handleSearchNext}
+                />
               </div>
             </header>
 
-            {isDragging && (
+            <div className="px-6 pt-4 pb-0 bg-gray-50 border-b border-gray-200 flex-shrink-0">
+              <span className="pb-3 text-sm font-medium border-b-2 border-brand-main text-brand-main inline-block">채팅</span>
+            </div>
+
+            <div className="flex-1 overflow-hidden relative bg-brand-light/30">
+              <div
+                className="h-full flex flex-col relative min-w-0 overflow-hidden"
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+              >
+                {isDragging && (
               <div className="absolute inset-0 z-30 bg-brand-sub/10 border-2 border-dashed border-brand-sub rounded-lg flex items-center justify-center pointer-events-none">
                 <div className="bg-white px-6 py-4 rounded-xl shadow-lg text-center">
                   <Paperclip size={32} className="mx-auto mb-2 text-brand-sub" />
@@ -324,10 +356,14 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
                           const timeStr = formatChatTime(msg.createdAt);
                           const showDelete = canDeleteMessage(msg, user);
                           const isDeleting = deletingMessageId === msg.id;
+                          const isCurrentMatch = matchedIds[currentIndex] === msg.id;
                           return (
                             <div
                               key={msg.id}
-                              className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}
+                              ref={(el) => {
+                                msgRefs.current[msg.id] = el;
+                              }}
+                              className={`flex ${isMe ? 'justify-end' : 'justify-start'} group ${isCurrentMatch ? 'ring-2 ring-brand-main ring-inset rounded-lg' : ''}`}
                               onContextMenu={(e) => {
                                 e.preventDefault();
                                 setContextMenu({ x: e.clientX, y: e.clientY, msg });
@@ -351,7 +387,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
                                       isMe ? 'rounded-tr-none' : 'rounded-tl-none'
                                     }`}
                                   >
-                                    {msg.text && <p className="text-gray-800">{msg.text}</p>}
+                                    {msg.text && <p className="text-gray-800">{highlightText(msg.text, searchQuery)}</p>}
                                     <FileAttachment msg={msg} isMe={isMe} onImageClick={(url) => setExpandedImageUrl(url)} />
                                   </div>
                                   {showDelete && (
@@ -390,10 +426,14 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
                           const timeStr = formatChatTime(msg.createdAt);
                           const showDelete = canDeleteMessage(msg, user);
                           const isDeleting = deletingMessageId === msg.id;
+                          const isCurrentMatch = matchedIds[currentIndex] === msg.id;
                           return (
                             <div
                               key={msg.id}
-                              className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}
+                              ref={(el) => {
+                                msgRefs.current[msg.id] = el;
+                              }}
+                              className={`flex ${isMe ? 'justify-end' : 'justify-start'} group ${isCurrentMatch ? 'ring-2 ring-brand-main ring-inset rounded-lg' : ''}`}
                               onContextMenu={(e) => {
                                 e.preventDefault();
                                 setContextMenu({ x: e.clientX, y: e.clientY, msg });
@@ -419,7 +459,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
                                         : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
                                     }`}
                                   >
-                                    {msg.text && <p>{msg.text}</p>}
+                                    {msg.text && <p>{highlightText(msg.text, searchQuery)}</p>}
                                     <FileAttachment msg={msg} isMe={isMe} onImageClick={(url) => setExpandedImageUrl(url)} />
                                   </div>
                                   {showDelete && (
@@ -456,7 +496,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
               />
             )}
 
-            <div className="p-4 bg-brand-light border-t border-gray-200 flex-shrink-0">
+            <div className="p-4 bg-white border-t border-gray-200 flex-shrink-0">
               {toastMessage && (
                 <div className="mb-2 px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">
                   {toastMessage}
@@ -466,7 +506,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
                 파일을 끌어다 놓거나 Ctrl+V로 붙여넣을 수 있습니다 (최대 100MB)
               </p>
               <div
-                className="bg-white border border-gray-200 rounded-xl p-2 focus-within:ring-2 focus-within:ring-brand-sub/30 focus-within:border-brand-sub transition-all shadow-sm"
+                className="bg-gray-50 border border-gray-200 rounded-xl p-2 focus-within:ring-2 focus-within:ring-brand-sub/30 focus-within:border-brand-sub transition-all shadow-sm"
                 onDragOver={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -487,7 +527,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
                     {pendingFiles.map((p) => (
                       <div
                         key={p.id}
-                        className="relative inline-flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg overflow-hidden shadow-sm"
+                        className="relative inline-flex items-center gap-1.5 bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm"
                       >
                         {p.previewUrl ? (
                           <button
@@ -559,6 +599,8 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
                     <Send size={16} />
                   </button>
                 </div>
+              </div>
+            </div>
               </div>
             </div>
           </div>

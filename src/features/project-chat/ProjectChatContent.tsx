@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
-  Search,
   Paperclip,
   Send,
   ChevronRight,
@@ -11,11 +10,14 @@ import {
   X,
 } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
+import { useChatSearch } from '../../hooks/useChatSearch';
 import { formatChatDateLabel, formatChatTime } from '../../lib/chat-format';
+import { highlightText } from '../../lib/search-utils';
 import { formatFileSize } from '../../lib/storage';
 import { validateChatFile, createPendingFile } from '../../lib/chat-file';
 import { ImageLightbox } from '../../components/chat/ImageLightbox';
 import { FileAttachment } from '../../components/chat/FileAttachment';
+import { ChatSearchBar } from '../../components/chat/ChatSearchBar';
 import type { AppUser } from '../../types/user';
 import type { ChatMessage } from '../../types/chat';
 import type { Project } from '../../types/project';
@@ -43,6 +45,30 @@ export function ProjectChatContent({
       subMenuId: selectedMenuData.id,
       currentUser: user,
     });
+
+  const chatSearch = useChatSearch(messages);
+  const { searchQuery, setSearchQuery, matchedIds, currentIndex, goPrev, goNext } = chatSearch;
+  const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const handleSearchPrev = useCallback(() => {
+    goPrev();
+    const nextIdx = currentIndex <= 0 ? matchedIds.length - 1 : currentIndex - 1;
+    const id = matchedIds[nextIdx];
+    queueMicrotask(() => {
+      const el = msgRefs.current[id];
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [goPrev, currentIndex, matchedIds]);
+
+  const handleSearchNext = useCallback(() => {
+    goNext();
+    const nextIdx = currentIndex >= matchedIds.length - 1 ? 0 : currentIndex + 1;
+    const id = matchedIds[nextIdx];
+    queueMicrotask(() => {
+      const el = msgRefs.current[id];
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  }, [goNext, currentIndex, matchedIds]);
 
   const [inputText, setInputText] = useState('');
   const [isDragging, setIsDragging] = useState(false);
@@ -238,15 +264,15 @@ export function ProjectChatContent({
             <span className="font-medium text-brand-main">{selectedMenuData.name}</span>
           </div>
         </div>
-        <div className="flex items-center min-w-0 flex-1 justify-end ml-4">
-          <div className="relative hidden md:block w-full max-w-md">
-            <Search size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="검색"
-              className="pl-9 pr-4 py-1.5 bg-gray-100 border-none rounded-md text-sm focus:ring-2 focus:ring-brand-sub/50 outline-none w-full transition-all"
-            />
-          </div>
+        <div className="flex items-center min-w-0 flex-1 justify-end ml-4 hidden md:flex">
+          <ChatSearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            matchedCount={matchedIds.length}
+            currentIndex={currentIndex}
+            onPrev={handleSearchPrev}
+            onNext={handleSearchNext}
+          />
         </div>
       </header>
 
@@ -335,8 +361,15 @@ export function ProjectChatContent({
                       const timeStr = formatChatTime(msg.createdAt);
                       const showDelete = canDeleteMessage(msg, user);
                       const isDeleting = deletingMessageId === msg.id;
+                      const isCurrentMatch = matchedIds[currentIndex] === msg.id;
                       return (
-                        <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
+                        <div
+                          key={msg.id}
+                          ref={(el) => {
+                            msgRefs.current[msg.id] = el;
+                          }}
+                          className={`flex ${isMe ? 'justify-end' : 'justify-start'} group ${isCurrentMatch ? 'ring-2 ring-brand-main ring-inset rounded-lg' : ''}`}
+                        >
                           {!isMe && (
                             <div className="w-9 h-9 rounded-full mr-3 mt-1 bg-brand-sub/20 flex items-center justify-center text-brand-dark text-sm font-semibold flex-shrink-0">
                               {(msg.senderDisplayName?.[0] ?? '?')}
@@ -357,7 +390,7 @@ export function ProjectChatContent({
                                     : 'bg-white text-gray-800 border border-gray-100 rounded-tl-none'
                                 }`}
                               >
-                                {msg.text && <p>{msg.text}</p>}
+                                {msg.text && <p>{highlightText(msg.text, searchQuery)}</p>}
                                 <FileAttachment
                                   msg={msg}
                                   isMe={isMe}
