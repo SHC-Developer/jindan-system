@@ -8,6 +8,7 @@ import {
   toDateKeySeoul,
   getDayOfWeekSeoul,
   getNineTenSeoul,
+  getTodaySixSeoul,
   getTodaySixTenSeoul,
   getNextDaySixAmSeoul,
   isWeekdaySeoul,
@@ -50,7 +51,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const [overtimeLoading, setOvertimeLoading] = useState<string | null>(null);
 
   const { addToast } = useToastContext();
-  const { todayLog, loading: todayLoading, error: todayError } = useTodayWorkLog(currentUser.uid);
+  const { todayLog, loading: todayLoading, error: todayError } = useTodayWorkLog(currentUser.uid, now);
   const { workLogs, loading: listLoading, error: listError } = useMyWorkLogs(currentUser.uid);
   const { leaveDateKeys, approvedDateKeys, loading: leaveLoading } = useLeaveDays(currentUser.uid);
 
@@ -142,10 +143,13 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     [clockOutLoading]
   );
 
-  const statusText = todayLog ? '정상 근무' : null;
+  const statusText = todayLog && todayLog.status !== 'absent' ? '정상 근무' : null;
 
   const showClockInButton = !isLeaveToday && !todayLog && !clockInLoading;
-  const canClockOut = todayLog != null && todayLog.clockOutAt == null;
+  const canClockOut =
+    todayLog != null &&
+    todayLog.status !== 'absent' &&
+    todayLog.clockOutAt == null;
 
   const todayWorkMs =
     todayLog?.clockInAt != null && todayLog.clockOutAt != null
@@ -154,6 +158,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
         ? now - todayLog.clockInAt
         : 0;
 
+  // 실시간: 오늘 로그에 대해 18:10 지나면 자동 퇴근
   useEffect(() => {
     if (!todayLog || todayLog.clockOutAt != null) return;
     const sixTen = getTodaySixTenSeoul(now);
@@ -162,6 +167,20 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     }
   }, [todayLog?.id, todayLog?.clockOutAt, now]);
 
+  // 보정: 퇴근 미처리 건 중 출근일 기준 18:10이 이미 지난 건 모두 18:10으로 자동 퇴근 (페이지 나중에 열어도 적용)
+  useEffect(() => {
+    const toFix = workLogs.filter(
+      (log) =>
+        log.clockOutAt == null &&
+        log.status === 'approved' &&
+        now >= getTodaySixTenSeoul(log.clockInAt)
+    );
+    toFix.forEach((log) => {
+      clockOutWorkLog(log.id, getTodaySixTenSeoul(log.clockInAt)).catch(console.error);
+    });
+  }, [workLogs, now]);
+
+  // 실시간: 오늘 로그에 대해 야근 중이면 익일 06:00 지나면 자동 종료
   useEffect(() => {
     if (!todayLog?.clockOutAt || !todayLog.overtimeStartAt || todayLog.overtimeEndAt != null) return;
     const nextSixAm = getNextDaySixAmSeoul(todayLog.clockInAt);
@@ -169,6 +188,20 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       endOvertime(todayLog.id, nextSixAm).catch(console.error);
     }
   }, [todayLog?.id, todayLog?.clockInAt, todayLog?.clockOutAt, todayLog?.overtimeStartAt, todayLog?.overtimeEndAt, now]);
+
+  // 보정: 야근 시작 후 미종료 건 중 출근일 기준 익일 06:00이 이미 지난 건 모두 06:00으로 자동 종료
+  useEffect(() => {
+    const toFix = workLogs.filter(
+      (log) =>
+        log.clockOutAt != null &&
+        log.overtimeStartAt != null &&
+        log.overtimeEndAt == null &&
+        now >= getNextDaySixAmSeoul(log.clockInAt)
+    );
+    toFix.forEach((log) => {
+      endOvertime(log.id, getNextDaySixAmSeoul(log.clockInAt)).catch(console.error);
+    });
+  }, [workLogs, now]);
 
   const handleStartOvertime = useCallback(
     async (logId: string) => {
@@ -380,7 +413,10 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                   )}
                 </button>
               )}
-              {todayLog && todayLog.clockOutAt != null && todayLog.overtimeEndAt == null && (
+              {todayLog &&
+                todayLog.clockOutAt != null &&
+                todayLog.clockOutAt >= getTodaySixSeoul(todayLog.clockInAt) &&
+                todayLog.overtimeEndAt == null && (
                 <div className="flex flex-col gap-2 mt-2">
                   {todayLog.overtimeStartAt == null ? (
                     <button

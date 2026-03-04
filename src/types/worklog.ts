@@ -1,4 +1,4 @@
-export type WorkLogStatus = 'pending' | 'approved' | 'rejected';
+export type WorkLogStatus = 'pending' | 'approved' | 'rejected' | 'absent';
 
 export interface WorkLogEntry {
   id: string;

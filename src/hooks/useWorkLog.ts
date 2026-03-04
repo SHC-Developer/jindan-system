@@ -66,17 +66,17 @@ export function useMyWorkLogs(userId: string | null): {
   return { workLogs, loading, error };
 }
 
-/** 오늘 날짜(서울 기준)의 출근 기록 1건. useMyWorkLogs 기반. */
-export function useTodayWorkLog(userId: string | null): {
+/** 오늘 날짜(서울 기준)의 출근 기록 1건. useMyWorkLogs 기반. nowMs를 넘기면 자정 경계에서 오늘 로그를 정확히 계산. */
+export function useTodayWorkLog(userId: string | null, nowMs?: number): {
   todayLog: WorkLogEntry | null;
   loading: boolean;
   error: string | null;
 } {
   const { workLogs, loading, error } = useMyWorkLogs(userId);
+  const todayKey = nowMs != null ? toDateKeySeoul(nowMs) : toDateKeySeoul(Date.now());
   const todayLog = useMemo(() => {
-    const todayKey = toDateKeySeoul(Date.now());
     return workLogs.find((log) => toDateKeySeoul(log.clockInAt) === todayKey) ?? null;
-  }, [workLogs]);
+  }, [workLogs, todayKey]);
 
   return { todayLog, loading, error };
 }

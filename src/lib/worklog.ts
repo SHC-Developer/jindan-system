@@ -59,6 +59,29 @@ export async function endOvertime(logId: string, endAtMs?: number): Promise<void
   });
 }
 
+/** 결근 기록 생성: 해당 날짜(서울 기준)에 대한 결근 1건 생성. 평일 누적 보충용. */
+export async function createAbsentWorkLog(
+  userId: string,
+  userDisplayName: string | null,
+  dateKey: string
+): Promise<string> {
+  const ref = getWorkLogsRef();
+  const clockInAt = new Date(dateKey + 'T00:00:00+09:00').getTime();
+  const docRef = await addDoc(ref, {
+    userId,
+    userDisplayName: userDisplayName ?? null,
+    clockInAt,
+    clockOutAt: null,
+    status: 'absent',
+    approvedBy: null,
+    approvedAt: null,
+    tardinessReason: null,
+    overtimeStartAt: null,
+    overtimeEndAt: null,
+  });
+  return docRef.id;
+}
+
 /** 관리자 전용: 출근 기록 삭제(출근 상태 리셋). */
 export async function deleteWorkLog(logId: string): Promise<void> {
   const ref = getWorkLogRef(logId);

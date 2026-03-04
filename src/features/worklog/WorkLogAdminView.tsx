@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAllWorkLogs } from '../../hooks/useWorkLog';
 import { useUserList } from '../../hooks/useUserList';
-import { deleteWorkLog } from '../../lib/worklog';
+import { deleteWorkLog, clockOutWorkLog, endOvertime, createAbsentWorkLog } from '../../lib/worklog';
 import { subscribeLeaveDays, approveLeaveDay, unapproveLeaveDay } from '../../lib/leaveDays';
 import { getHolidayDateKeys } from '../../lib/kr-holidays';
 import {
@@ -11,6 +11,9 @@ import {
   getTardinessMinutesSeoul,
   formatTardinessNote,
   getDayOfWeekSeoul,
+  getStartOfDaySeoul,
+  getTodaySixTenSeoul,
+  getNextDaySixAmSeoul,
 } from '../../lib/datetime-seoul';
 import type { AppUser } from '../../types/user';
 import type { WorkLogEntry } from '../../types/worklog';
@@ -50,6 +53,7 @@ function getAttendanceStatus(
   log: WorkLogEntry,
   holidayDateKeys?: Set<string>
 ): string {
+  if (log.status === 'absent') return '결근';
   if (log.status === 'pending') return '승인 대기';
   if (log.status === 'rejected') return '승인 거부';
   if (log.status === 'approved') {
@@ -72,6 +76,8 @@ interface DbRow {
   attendanceStatus: string;
   clockInAt: number | null;
   clockOutAt: number | null;
+  overtimeStartAt: number | null;
+  overtimeEndAt: number | null;
   totalMs: number | null;
   note: string;
   tardinessReason: string | null;
@@ -100,9 +106,36 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
   const [holidayDateKeys, setHolidayDateKeys] = useState<Set<string>>(new Set());
   const databaseFilterRef = React.useRef<HTMLDivElement>(null);
   const databaseFilterDropdownRef = React.useRef<HTMLDivElement>(null);
+  /** 어제 결근 생성 요청을 이미 보낸 (userId-dateKey) 집합. effect 재실행 시 중복 생성 방지. */
+  const absentCreatedRef = React.useRef<{ yesterdayKey: string; keys: Set<string> }>({ yesterdayKey: '', keys: new Set() });
 
   const { workLogs: allLogs, loading: allLoading, error: allError } = useAllWorkLogs();
   const { users, loading: usersLoading } = useUserList();
+
+  // 관리자 페이지에서도 18:10 자동 퇴근·야근 06:00 자동 종료 보정 (전체 로그 대상, 새로고침 시 적용)
+  useEffect(() => {
+    if (allLogs.length === 0) return;
+    const now = Date.now();
+    const toFixClockOut = allLogs.filter(
+      (log) =>
+        log.clockOutAt == null &&
+        log.status === 'approved' &&
+        now >= getTodaySixTenSeoul(log.clockInAt)
+    );
+    toFixClockOut.forEach((log) => {
+      clockOutWorkLog(log.id, getTodaySixTenSeoul(log.clockInAt)).catch(console.error);
+    });
+    const toFixOvertime = allLogs.filter(
+      (log) =>
+        log.clockOutAt != null &&
+        log.overtimeStartAt != null &&
+        log.overtimeEndAt == null &&
+        now >= getNextDaySixAmSeoul(log.clockInAt)
+    );
+    toFixOvertime.forEach((log) => {
+      endOvertime(log.id, getNextDaySixAmSeoul(log.clockInAt)).catch(console.error);
+    });
+  }, [allLogs]);
 
   useEffect(() => {
     if (users.length === 0) {
@@ -135,6 +168,36 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     });
     return map;
   }, [leaveByUser]);
+
+  // 어제(서울 기준)가 평일·비공휴일이면, 일반 사용자 중 해당 날짜에 기록(출근/연차)이 없는 사람에게 결근 1건 생성 (하루씩 누적). ref로 중복 생성 방지.
+  useEffect(() => {
+    if (allLogs.length === 0 || users.length === 0) return;
+    const now = Date.now();
+    const todayStart = getStartOfDaySeoul(now);
+    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
+    const yesterdayKey = toDateKeySeoul(yesterdayStart);
+    const day = getDayOfWeekSeoul(yesterdayStart);
+    if (day === 0 || day === 6) return;
+    if (absentCreatedRef.current.yesterdayKey !== yesterdayKey) {
+      absentCreatedRef.current = { yesterdayKey, keys: new Set() };
+    }
+    const createdKeys = absentCreatedRef.current.keys;
+    const year = parseInt(yesterdayKey.slice(0, 4), 10);
+    getHolidayDateKeys(year).then((holidayKeys) => {
+      if (holidayKeys.has(yesterdayKey)) return;
+      const existingByUserDate = new Set(
+        allLogs.map((log) => `${log.userId}-${toDateKeySeoul(log.clockInAt)}`)
+      );
+      users.forEach((u) => {
+        const key = `${u.uid}-${yesterdayKey}`;
+        if (existingByUserDate.has(key)) return;
+        if (leaveDaysByUser.get(u.uid)?.has(yesterdayKey)) return;
+        if (createdKeys.has(key)) return;
+        createdKeys.add(key);
+        createAbsentWorkLog(u.uid, u.displayName, yesterdayKey).catch(console.error);
+      });
+    });
+  }, [allLogs, users, leaveDaysByUser]);
 
   const userIdsToFetchLeave = useMemo(() => {
     if (databaseAssigneeFilter === null) return users.map((u) => u.uid);
@@ -267,6 +330,8 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
         attendanceStatus: status,
         clockInAt: log.clockInAt,
         clockOutAt: log.clockOutAt,
+        overtimeStartAt: log.overtimeStartAt ?? null,
+        overtimeEndAt: log.overtimeEndAt ?? null,
         totalMs,
         note,
         tardinessReason: log.tardinessReason,
@@ -290,6 +355,8 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
           attendanceStatus: '연차',
           clockInAt: null,
           clockOutAt: null,
+          overtimeStartAt: null,
+          overtimeEndAt: null,
           totalMs: null,
           note: '',
           tardinessReason: null,
@@ -343,6 +410,8 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
       출근상태: r.attendanceStatus,
       출근시간: r.clockInAt != null ? formatTime(r.clockInAt) : '',
       퇴근시간: r.clockOutAt != null ? formatTime(r.clockOutAt) : '',
+      야근시작: r.overtimeStartAt != null ? formatTime(r.overtimeStartAt) : '',
+      야근종료: r.overtimeEndAt != null ? formatTime(r.overtimeEndAt) : '',
       총근무시간: r.totalMs != null ? formatDurationMs(r.totalMs) : '',
       비고: r.note,
       지각사유: r.tardinessReason ?? '',
@@ -570,32 +639,34 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto shadow-sm">
-                  <table className="w-full text-sm border-collapse min-w-[800px]">
+                  <table className="w-full text-sm border-collapse min-w-[720px]">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">날짜</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">직원</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">출근 상태</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">출근 시간</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">퇴근 시간</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">총 근무 시간</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">비고</th>
-                        <th className="text-left py-3 px-4 font-medium text-gray-700">지각 사유</th>
+                        <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">날짜</th>
+                        <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">직원</th>
+                        <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">출근 상태</th>
+                        <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">출근 시간</th>
+                        <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">퇴근 시간</th>
+                        <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">야근 시작</th>
+                        <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">야근 종료</th>
+                        <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">총 근무 시간</th>
+                        <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">비고</th>
+                        <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">지각 사유</th>
                       </tr>
                     </thead>
                     <tbody>
                       {dbRows.length === 0 ? (
                         <tr>
-                          <td colSpan={8} className="py-8 text-center text-gray-500">
+                          <td colSpan={10} className="py-8 text-center text-gray-500">
                             조건에 맞는 기록이 없습니다.
                           </td>
                         </tr>
                       ) : (
                         dbRows.map((r) => (
                           <tr key={r.type === 'worklog' ? r.logId! : `leave-${r.userId}-${r.dateKey}`} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50">
-                            <td className="py-3 px-4 text-gray-800">{r.dateLabel}</td>
-                            <td className="py-3 px-4 text-gray-800">{r.userDisplayName ?? r.userId.slice(0, 8)}</td>
-                            <td className="py-3 px-4">
+                            <td className="py-2 px-2 text-gray-800 whitespace-nowrap">{r.dateLabel}</td>
+                            <td className="py-2 px-2 text-gray-800 whitespace-nowrap">{r.userDisplayName ?? r.userId.slice(0, 8)}</td>
+                            <td className="py-2 px-2 whitespace-nowrap">
                               <span
                                 className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
                                   r.attendanceStatus === '정상출근'
@@ -604,23 +675,31 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                                       ? 'bg-amber-100 text-amber-800'
                                       : r.attendanceStatus === '연차'
                                         ? 'bg-gray-100 text-gray-700'
-                                        : 'bg-amber-100 text-amber-800'
+                                        : r.attendanceStatus === '결근'
+                                          ? 'bg-red-100 text-red-800'
+                                          : 'bg-amber-100 text-amber-800'
                                 }`}
                               >
                                 {r.attendanceStatus}
                               </span>
                             </td>
-                            <td className="py-3 px-4 text-gray-700">
+                            <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
                               {r.clockInAt != null ? formatTime(r.clockInAt) : '-'}
                             </td>
-                            <td className="py-3 px-4 text-gray-700">
+                            <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
                               {r.clockOutAt != null ? formatTime(r.clockOutAt) : '-'}
                             </td>
-                            <td className="py-3 px-4 text-gray-700">
+                            <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
+                              {r.overtimeStartAt != null ? formatTime(r.overtimeStartAt) : '-'}
+                            </td>
+                            <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
+                              {r.overtimeEndAt != null ? formatTime(r.overtimeEndAt) : '-'}
+                            </td>
+                            <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
                               {r.totalMs != null ? formatDurationMs(r.totalMs) : '-'}
                             </td>
-                            <td className="py-3 px-4 text-gray-700">{r.note || '-'}</td>
-                            <td className="py-3 px-4 text-gray-600 max-w-[200px] truncate" title={r.tardinessReason ?? ''}>
+                            <td className="py-2 px-2 text-gray-700 whitespace-nowrap">{r.note || '-'}</td>
+                            <td className="py-2 px-2 text-gray-600 max-w-[140px] truncate whitespace-nowrap" title={r.tardinessReason ?? ''}>
                               {r.tardinessReason ?? '-'}
                             </td>
                           </tr>

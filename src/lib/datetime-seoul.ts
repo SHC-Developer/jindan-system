@@ -43,6 +43,13 @@ export function getNineTenSeoul(ms: number): number {
   return d.getTime();
 }
 
+/** 서울 기준 해당 날짜 18:00 (오후) 의 ms. 야근 시작 버튼 노출 기준(18:00 이후 퇴근만). */
+export function getTodaySixSeoul(ms: number): number {
+  const s = new Date(ms).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  const d = new Date(s + 'T18:00:00+09:00');
+  return d.getTime();
+}
+
 /** 서울 기준 해당 날짜 18:10 (오후) 의 ms. 자동 퇴근 시각용. */
 export function getTodaySixTenSeoul(ms: number): number {
   const s = new Date(ms).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
