@@ -25,6 +25,22 @@ export async function createWorkLog(
   return docRef.id;
 }
 
+/** 결근 기록을 출근으로 갱신 (00:00에 생성된 당일 결근 문서를 정상/지각으로 업데이트). */
+export async function updateWorkLogToClockIn(
+  logId: string,
+  clockInAtMs: number,
+  tardinessReason?: string | null
+): Promise<void> {
+  const ref = getWorkLogRef(logId);
+  await updateDoc(ref, {
+    clockInAt: clockInAtMs,
+    status: 'approved',
+    approvedBy: null,
+    approvedAt: null,
+    tardinessReason: tardinessReason ?? null,
+  });
+}
+
 /** 관리자 승인: status → approved, approvedBy, approvedAt 설정. */
 export async function approveWorkLog(logId: string, approvedByUid: string): Promise<void> {
   const ref = getWorkLogRef(logId);

@@ -1,7 +1,13 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTodayWorkLog, useMyWorkLogs } from '../../hooks/useWorkLog';
 import { useLeaveDays } from '../../hooks/useLeaveDays';
-import { createWorkLog, clockOutWorkLog, startOvertime, endOvertime } from '../../lib/worklog';
+import {
+  createWorkLog,
+  updateWorkLogToClockIn,
+  clockOutWorkLog,
+  startOvertime,
+  endOvertime,
+} from '../../lib/worklog';
 import { addLeaveDay, removeLeaveDay } from '../../lib/leaveDays';
 import { notifyAdmins } from '../../lib/notifications';
 import {
@@ -91,42 +97,58 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const isTardyNow = isWeekday && !isHolidayToday && now > getNineTenSeoul(now);
 
   const handleClockInClick = useCallback(() => {
-    if (todayLog || clockInLoading) return;
+    if ((todayLog && todayLog.status !== 'absent') || clockInLoading) return;
     if (isTardyNow) {
       setTardinessModalOpen(true);
       setTardinessReason('');
       return;
     }
     setClockInLoading(true);
-    createWorkLog(currentUser.uid, currentUser.displayName, null)
-      .then(() => {
-        const name = currentUser.displayName ?? '직원';
-        addToast({
-          title: '출근 완료',
-          message: `${name}님, 출근이 완료되었습니다. 오늘도 좋은 하루 되세요!`,
-        });
-      })
-      .catch(console.error)
-      .finally(() => setClockInLoading(false));
+    const onSuccess = () => {
+      const name = currentUser.displayName ?? '직원';
+      addToast({
+        title: '출근 완료',
+        message: `${name}님, 출근이 완료되었습니다. 오늘도 좋은 하루 되세요!`,
+      });
+    };
+    if (todayLog?.status === 'absent') {
+      updateWorkLogToClockIn(todayLog.id, Date.now(), null)
+        .then(onSuccess)
+        .catch(console.error)
+        .finally(() => setClockInLoading(false));
+    } else {
+      createWorkLog(currentUser.uid, currentUser.displayName, null)
+        .then(onSuccess)
+        .catch(console.error)
+        .finally(() => setClockInLoading(false));
+    }
   }, [todayLog, clockInLoading, isTardyNow, currentUser.uid, currentUser.displayName, addToast]);
 
   const handleTardinessSubmit = useCallback(() => {
     const reason = tardinessReason.trim();
     if (!reason || clockInLoading) return;
     setClockInLoading(true);
-    createWorkLog(currentUser.uid, currentUser.displayName, reason)
-      .then(() => {
-        setTardinessModalOpen(false);
-        setTardinessReason('');
-        const name = currentUser.displayName ?? '직원';
-        addToast({
-          title: '출근 완료',
-          message: `${name}님, 출근이 완료되었습니다. 오늘도 좋은 하루 되세요!`,
-        });
-      })
-      .catch(console.error)
-      .finally(() => setClockInLoading(false));
-  }, [tardinessReason, clockInLoading, currentUser.uid, currentUser.displayName, addToast]);
+    const onSuccess = () => {
+      setTardinessModalOpen(false);
+      setTardinessReason('');
+      const name = currentUser.displayName ?? '직원';
+      addToast({
+        title: '출근 완료',
+        message: `${name}님, 출근이 완료되었습니다. 오늘도 좋은 하루 되세요!`,
+      });
+    };
+    if (todayLog?.status === 'absent') {
+      updateWorkLogToClockIn(todayLog.id, Date.now(), reason)
+        .then(onSuccess)
+        .catch(console.error)
+        .finally(() => setClockInLoading(false));
+    } else {
+      createWorkLog(currentUser.uid, currentUser.displayName, reason)
+        .then(onSuccess)
+        .catch(console.error)
+        .finally(() => setClockInLoading(false));
+    }
+  }, [tardinessReason, clockInLoading, todayLog, currentUser.uid, currentUser.displayName, addToast]);
 
   const handleClockOut = useCallback(
     async (logId: string) => {
@@ -145,27 +167,30 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
 
   const statusText = todayLog && todayLog.status !== 'absent' ? '정상 근무' : null;
 
-  const showClockInButton = !isLeaveToday && !todayLog && !clockInLoading;
+  const showClockInButton =
+    !isLeaveToday && (!todayLog || todayLog.status === 'absent') && !clockInLoading;
   const canClockOut =
     todayLog != null &&
     todayLog.status !== 'absent' &&
     todayLog.clockOutAt == null;
 
   const todayWorkMs =
-    todayLog?.clockInAt != null && todayLog.clockOutAt != null
-      ? todayLog.clockOutAt - todayLog.clockInAt
-      : todayLog?.clockInAt != null
-        ? now - todayLog.clockInAt
-        : 0;
+    todayLog?.status === 'absent'
+      ? 0
+      : todayLog?.clockInAt != null && todayLog.clockOutAt != null
+        ? todayLog.clockOutAt - todayLog.clockInAt
+        : todayLog?.clockInAt != null
+          ? now - todayLog.clockInAt
+          : 0;
 
-  // 실시간: 오늘 로그에 대해 18:10 지나면 자동 퇴근
+  // 실시간: 오늘 로그(출근 처리된 것만)에 대해 18:10 지나면 자동 퇴근
   useEffect(() => {
-    if (!todayLog || todayLog.clockOutAt != null) return;
+    if (!todayLog || todayLog.status !== 'approved' || todayLog.clockOutAt != null) return;
     const sixTen = getTodaySixTenSeoul(now);
     if (now >= sixTen) {
       clockOutWorkLog(todayLog.id, sixTen).catch(console.error);
     }
-  }, [todayLog?.id, todayLog?.clockOutAt, now]);
+  }, [todayLog?.id, todayLog?.status, todayLog?.clockOutAt, now]);
 
   // 보정: 퇴근 미처리 건 중 출근일 기준 18:10이 이미 지난 건 모두 18:10으로 자동 퇴근 (페이지 나중에 열어도 적용)
   useEffect(() => {
@@ -180,14 +205,21 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     });
   }, [workLogs, now]);
 
-  // 실시간: 오늘 로그에 대해 야근 중이면 익일 06:00 지나면 자동 종료
+  // 실시간: 오늘 로그(출근 처리된 것만)에 대해 야근 중이면 익일 06:00 지나면 자동 종료
   useEffect(() => {
-    if (!todayLog?.clockOutAt || !todayLog.overtimeStartAt || todayLog.overtimeEndAt != null) return;
+    if (
+      !todayLog ||
+      todayLog.status !== 'approved' ||
+      !todayLog.clockOutAt ||
+      !todayLog.overtimeStartAt ||
+      todayLog.overtimeEndAt != null
+    )
+      return;
     const nextSixAm = getNextDaySixAmSeoul(todayLog.clockInAt);
     if (now >= nextSixAm) {
       endOvertime(todayLog.id, nextSixAm).catch(console.error);
     }
-  }, [todayLog?.id, todayLog?.clockInAt, todayLog?.clockOutAt, todayLog?.overtimeStartAt, todayLog?.overtimeEndAt, now]);
+  }, [todayLog?.id, todayLog?.status, todayLog?.clockInAt, todayLog?.clockOutAt, todayLog?.overtimeStartAt, todayLog?.overtimeEndAt, now]);
 
   // 보정: 야근 시작 후 미종료 건 중 출근일 기준 익일 06:00이 이미 지난 건 모두 06:00으로 자동 종료
   useEffect(() => {

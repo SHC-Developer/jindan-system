@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAllWorkLogs } from '../../hooks/useWorkLog';
 import { useUserList } from '../../hooks/useUserList';
-import { deleteWorkLog, clockOutWorkLog, endOvertime, createAbsentWorkLog } from '../../lib/worklog';
+import { deleteWorkLog, clockOutWorkLog, endOvertime } from '../../lib/worklog';
 import { subscribeLeaveDays, approveLeaveDay, unapproveLeaveDay } from '../../lib/leaveDays';
 import { getHolidayDateKeys } from '../../lib/kr-holidays';
 import {
@@ -11,7 +11,6 @@ import {
   getTardinessMinutesSeoul,
   formatTardinessNote,
   getDayOfWeekSeoul,
-  getStartOfDaySeoul,
   getTodaySixTenSeoul,
   getNextDaySixAmSeoul,
 } from '../../lib/datetime-seoul';
@@ -106,8 +105,6 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
   const [holidayDateKeys, setHolidayDateKeys] = useState<Set<string>>(new Set());
   const databaseFilterRef = React.useRef<HTMLDivElement>(null);
   const databaseFilterDropdownRef = React.useRef<HTMLDivElement>(null);
-  /** 어제 결근 생성 요청을 이미 보낸 (userId-dateKey) 집합. effect 재실행 시 중복 생성 방지. */
-  const absentCreatedRef = React.useRef<{ yesterdayKey: string; keys: Set<string> }>({ yesterdayKey: '', keys: new Set() });
 
   const { workLogs: allLogs, loading: allLoading, error: allError } = useAllWorkLogs();
   const { users, loading: usersLoading } = useUserList();
@@ -168,36 +165,6 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     });
     return map;
   }, [leaveByUser]);
-
-  // 어제(서울 기준)가 평일·비공휴일이면, 일반 사용자 중 해당 날짜에 기록(출근/연차)이 없는 사람에게 결근 1건 생성 (하루씩 누적). ref로 중복 생성 방지.
-  useEffect(() => {
-    if (allLogs.length === 0 || users.length === 0) return;
-    const now = Date.now();
-    const todayStart = getStartOfDaySeoul(now);
-    const yesterdayStart = todayStart - 24 * 60 * 60 * 1000;
-    const yesterdayKey = toDateKeySeoul(yesterdayStart);
-    const day = getDayOfWeekSeoul(yesterdayStart);
-    if (day === 0 || day === 6) return;
-    if (absentCreatedRef.current.yesterdayKey !== yesterdayKey) {
-      absentCreatedRef.current = { yesterdayKey, keys: new Set() };
-    }
-    const createdKeys = absentCreatedRef.current.keys;
-    const year = parseInt(yesterdayKey.slice(0, 4), 10);
-    getHolidayDateKeys(year).then((holidayKeys) => {
-      if (holidayKeys.has(yesterdayKey)) return;
-      const existingByUserDate = new Set(
-        allLogs.map((log) => `${log.userId}-${toDateKeySeoul(log.clockInAt)}`)
-      );
-      users.forEach((u) => {
-        const key = `${u.uid}-${yesterdayKey}`;
-        if (existingByUserDate.has(key)) return;
-        if (leaveDaysByUser.get(u.uid)?.has(yesterdayKey)) return;
-        if (createdKeys.has(key)) return;
-        createdKeys.add(key);
-        createAbsentWorkLog(u.uid, u.displayName, yesterdayKey).catch(console.error);
-      });
-    });
-  }, [allLogs, users, leaveDaysByUser]);
 
   const userIdsToFetchLeave = useMemo(() => {
     if (databaseAssigneeFilter === null) return users.map((u) => u.uid);
