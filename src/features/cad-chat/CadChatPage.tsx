@@ -21,7 +21,7 @@ import { validateChatFile, createPendingFile } from '../../lib/chat-file';
 import { CAD_PROJECT_ID, CAD_SUBMENU_ID } from '../../constants/navigation';
 import { Sidebar } from '../../components/layout/Sidebar';
 import { RightPanel } from '../../components/layout/RightPanel';
-import { ImageLightbox } from '../../components/chat/ImageLightbox';
+import { ImageLightbox, ProfileNoPhotoModal } from '../../components/chat/ImageLightbox';
 import { FileAttachment } from '../../components/chat/FileAttachment';
 import { ChatSearchBar } from '../../components/chat/ChatSearchBar';
 import { ChatMessageAvatar } from '../../components/chat/ChatMessageAvatar';
@@ -91,6 +91,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
   const [pendingFiles, setPendingFiles] = useState<PendingChatFile[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+  const [expandedProfileUrl, setExpandedProfileUrl] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msg: ChatMessage } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -377,6 +378,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
                                 <ChatMessageAvatar
                                   photoURL={senderPhotoMap[msg.senderId] ?? null}
                                   displayName={msg.senderDisplayName}
+                                  onAvatarClick={(url) => setExpandedProfileUrl(url !== null ? url : '')}
                                 />
                               )}
                               <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
@@ -448,6 +450,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
                                 <ChatMessageAvatar
                                   photoURL={senderPhotoMap[msg.senderId] ?? null}
                                   displayName={msg.senderDisplayName}
+                                  onAvatarClick={(url) => setExpandedProfileUrl(url !== null ? url : '')}
                                 />
                               )}
                               <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
@@ -499,6 +502,17 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
                 imageUrl={expandedImageUrl}
                 onClose={() => setExpandedImageUrl(null)}
                 alt="첨부 이미지"
+              />
+            )}
+            {expandedProfileUrl === '' && (
+              <ProfileNoPhotoModal onClose={() => setExpandedProfileUrl(null)} size={375} />
+            )}
+            {expandedProfileUrl && expandedProfileUrl !== '' && (
+              <ImageLightbox
+                imageUrl={expandedProfileUrl}
+                onClose={() => setExpandedProfileUrl(null)}
+                alt="프로필 사진"
+                fixedSize={{ width: 375, height: 375 }}
               />
             )}
 

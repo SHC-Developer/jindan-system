@@ -425,7 +425,7 @@ export function Sidebar({
           type="button"
           onClick={() => profileFileInputRef.current?.click()}
           disabled={profileUploading}
-          className="w-8 h-8 rounded-full mr-2 flex-shrink-0 overflow-hidden bg-[#37392E] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#28AFB0] disabled:opacity-60 cursor-pointer"
+          className="w-8 h-8 rounded-full mr-2 flex-shrink-0 overflow-hidden bg-white flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#28AFB0] disabled:opacity-60 cursor-pointer"
           title="프로필 사진 변경"
           aria-label="프로필 사진 변경"
         >
@@ -438,7 +438,7 @@ export function Sidebar({
               className="w-full h-full object-cover"
             />
           ) : (
-            <User size={18} className="text-[#EEE5E5]" />
+            <User size={18} className="text-[#37392E]" />
           )}
         </button>
         <div className="flex-1 min-w-0">

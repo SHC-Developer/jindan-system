@@ -16,7 +16,7 @@ import { formatChatDateLabel, formatChatTime } from '../../lib/chat-format';
 import { highlightText } from '../../lib/search-utils';
 import { formatFileSize } from '../../lib/storage';
 import { validateChatFile, createPendingFile } from '../../lib/chat-file';
-import { ImageLightbox } from '../../components/chat/ImageLightbox';
+import { ImageLightbox, ProfileNoPhotoModal } from '../../components/chat/ImageLightbox';
 import { FileAttachment } from '../../components/chat/FileAttachment';
 import { ChatMessageAvatar } from '../../components/chat/ChatMessageAvatar';
 import { ChatSearchBar } from '../../components/chat/ChatSearchBar';
@@ -81,6 +81,7 @@ export function ProjectChatContent({
   const [pendingFiles, setPendingFiles] = useState<PendingChatFile[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
+  const [expandedProfileUrl, setExpandedProfileUrl] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -378,6 +379,7 @@ export function ProjectChatContent({
                             <ChatMessageAvatar
                               photoURL={senderPhotoMap[msg.senderId] ?? null}
                               displayName={msg.senderDisplayName}
+                              onAvatarClick={(url) => setExpandedProfileUrl(url !== null ? url : '')}
                             />
                           )}
                           <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
@@ -435,6 +437,17 @@ export function ProjectChatContent({
                 imageUrl={expandedImageUrl}
                 onClose={() => setExpandedImageUrl(null)}
                 alt="첨부 이미지"
+              />
+            )}
+            {expandedProfileUrl === '' && (
+              <ProfileNoPhotoModal onClose={() => setExpandedProfileUrl(null)} size={375} />
+            )}
+            {expandedProfileUrl && expandedProfileUrl !== '' && (
+              <ImageLightbox
+                imageUrl={expandedProfileUrl}
+                onClose={() => setExpandedProfileUrl(null)}
+                alt="프로필 사진"
+                fixedSize={{ width: 375, height: 375 }}
               />
             )}
 
