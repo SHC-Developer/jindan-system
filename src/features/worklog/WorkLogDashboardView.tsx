@@ -16,7 +16,7 @@ import {
   getNineTenSeoul,
   getTodaySixSeoul,
   getTodaySixTenSeoul,
-  getNextDaySixAmSeoul,
+  getTodayElevenPmSeoul,
   isWeekdaySeoul,
   isTardySeoul,
   getWeekRangeSeoul,
@@ -205,7 +205,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     });
   }, [workLogs, now]);
 
-  // 실시간: 오늘 로그(출근 처리된 것만)에 대해 야근 중이면 익일 06:00 지나면 자동 종료
+  // 실시간: 오늘 로그(출근 처리된 것만)에 대해 야근 중이면 당일 23:00 지나면 자동 종료
   useEffect(() => {
     if (
       !todayLog ||
@@ -215,23 +215,23 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       todayLog.overtimeEndAt != null
     )
       return;
-    const nextSixAm = getNextDaySixAmSeoul(todayLog.clockInAt);
-    if (now >= nextSixAm) {
-      endOvertime(todayLog.id, nextSixAm).catch(console.error);
+    const elevenPm = getTodayElevenPmSeoul(todayLog.clockInAt);
+    if (now >= elevenPm) {
+      endOvertime(todayLog.id, elevenPm).catch(console.error);
     }
   }, [todayLog?.id, todayLog?.status, todayLog?.clockInAt, todayLog?.clockOutAt, todayLog?.overtimeStartAt, todayLog?.overtimeEndAt, now]);
 
-  // 보정: 야근 시작 후 미종료 건 중 출근일 기준 익일 06:00이 이미 지난 건 모두 06:00으로 자동 종료
+  // 보정: 야근 시작 후 미종료 건 중 출근일 기준 당일 23:00이 이미 지난 건 모두 23:00으로 자동 종료
   useEffect(() => {
     const toFix = workLogs.filter(
       (log) =>
         log.clockOutAt != null &&
         log.overtimeStartAt != null &&
         log.overtimeEndAt == null &&
-        now >= getNextDaySixAmSeoul(log.clockInAt)
+        now >= getTodayElevenPmSeoul(log.clockInAt)
     );
     toFix.forEach((log) => {
-      endOvertime(log.id, getNextDaySixAmSeoul(log.clockInAt)).catch(console.error);
+      endOvertime(log.id, getTodayElevenPmSeoul(log.clockInAt)).catch(console.error);
     });
   }, [workLogs, now]);
 
@@ -485,8 +485,18 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
 
           <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm min-w-[200px]">
             <h3 className="text-sm font-medium text-gray-700 mb-2">오늘 근무 시간</h3>
-            {!todayLog && <p className="text-lg font-mono text-brand-dark">0h 0m</p>}
-            {todayLog && (
+            {(!todayLog || todayLog.status === 'absent') && (
+              <>
+                <p className="text-lg font-mono text-brand-dark">0h 0m</p>
+                {!isLeaveToday && (
+                  <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-sub" />
+                    아직 출근 전입니다
+                  </p>
+                )}
+              </>
+            )}
+            {todayLog && todayLog.status !== 'absent' && (
               <>
                 <p className="text-lg font-mono text-brand-dark">
                   {todayLog.clockOutAt
@@ -501,12 +511,6 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                 )}
                 {todayLog.clockOutAt && <p className="text-xs text-gray-500 mt-1">퇴근 완료</p>}
               </>
-            )}
-            {!todayLog && !isLeaveToday && (
-              <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-sub" />
-                아직 출근 전입니다
-              </p>
             )}
           </div>
         </div>

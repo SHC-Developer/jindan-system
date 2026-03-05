@@ -57,7 +57,14 @@ export function getTodaySixTenSeoul(ms: number): number {
   return d.getTime();
 }
 
-/** 출근일(clockInAt) 기준 서울 다음날 06:00 의 ms. 야근 자동 종료 시각용. */
+/** 출근일(clockInAt) 기준 서울 당일 23:00 의 ms. 야근 자동 종료 시각용 (00:00 전에 종료해 다음날 결근 기록과 겹치지 않도록). */
+export function getTodayElevenPmSeoul(clockInAtMs: number): number {
+  const s = new Date(clockInAtMs).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  const d = new Date(s + 'T23:00:00+09:00');
+  return d.getTime();
+}
+
+/** 출근일(clockInAt) 기준 서울 다음날 06:00 의 ms. (레거시·다른 용도) */
 export function getNextDaySixAmSeoul(clockInAtMs: number): number {
   const s = new Date(clockInAtMs).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
   const startOfDay = getStartOfDaySeoul(clockInAtMs);

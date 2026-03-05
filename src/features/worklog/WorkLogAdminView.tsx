@@ -12,7 +12,7 @@ import {
   formatTardinessNote,
   getDayOfWeekSeoul,
   getTodaySixTenSeoul,
-  getNextDaySixAmSeoul,
+  getTodayElevenPmSeoul,
 } from '../../lib/datetime-seoul';
 import type { AppUser } from '../../types/user';
 import type { WorkLogEntry } from '../../types/worklog';
@@ -127,10 +127,10 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
         log.clockOutAt != null &&
         log.overtimeStartAt != null &&
         log.overtimeEndAt == null &&
-        now >= getNextDaySixAmSeoul(log.clockInAt)
+        now >= getTodayElevenPmSeoul(log.clockInAt)
     );
     toFixOvertime.forEach((log) => {
-      endOvertime(log.id, getNextDaySixAmSeoul(log.clockInAt)).catch(console.error);
+      endOvertime(log.id, getTodayElevenPmSeoul(log.clockInAt)).catch(console.error);
     });
   }, [allLogs]);
 
