@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   Paperclip,
   Send,
@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { useChatSearch } from '../../hooks/useChatSearch';
+import { useSenderPhotoMap } from '../../hooks/useSenderPhotoMap';
 import { formatChatDateLabel, formatChatTime } from '../../lib/chat-format';
 import { highlightText } from '../../lib/search-utils';
 import { formatFileSize } from '../../lib/storage';
@@ -50,6 +51,8 @@ export function ProjectChatContent({
   const chatSearch = useChatSearch(messages);
   const { searchQuery, setSearchQuery, matchedIds, currentIndex, goPrev, goNext } = chatSearch;
   const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const senderIds = useMemo(() => messages.map((m) => m.senderId), [messages]);
+  const senderPhotoMap = useSenderPhotoMap(senderIds);
 
   const handleSearchPrev = useCallback(() => {
     goPrev();
@@ -373,7 +376,7 @@ export function ProjectChatContent({
                         >
                           {!isMe && (
                             <ChatMessageAvatar
-                              photoURL={msg.senderPhotoURL ?? null}
+                              photoURL={senderPhotoMap[msg.senderId] ?? null}
                               displayName={msg.senderDisplayName}
                             />
                           )}

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   Paperclip,
   Send,
@@ -13,6 +13,7 @@ import {
 import { useChat } from '../../hooks/useChat';
 import { useChatSearch } from '../../hooks/useChatSearch';
 import { usePinnedNotices } from '../../hooks/usePinnedNotices';
+import { useSenderPhotoMap } from '../../hooks/useSenderPhotoMap';
 import { formatChatDateLabel, formatChatTime } from '../../lib/chat-format';
 import { highlightText } from '../../lib/search-utils';
 import { formatFileSize } from '../../lib/storage';
@@ -60,6 +61,8 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
   const chatSearch = useChatSearch(messages);
   const { searchQuery, setSearchQuery, matchedIds, currentIndex, goPrev, goNext } = chatSearch;
   const msgRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const senderIds = useMemo(() => messages.map((m) => m.senderId), [messages]);
+  const senderPhotoMap = useSenderPhotoMap(senderIds);
 
   const handleSearchPrev = useCallback(() => {
     goPrev();
@@ -372,7 +375,7 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
                             >
                               {!isMe && (
                                 <ChatMessageAvatar
-                                  photoURL={msg.senderPhotoURL ?? null}
+                                  photoURL={senderPhotoMap[msg.senderId] ?? null}
                                   displayName={msg.senderDisplayName}
                                 />
                               )}
@@ -443,7 +446,7 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
                             >
                               {!isMe && (
                                 <ChatMessageAvatar
-                                  photoURL={msg.senderPhotoURL ?? null}
+                                  photoURL={senderPhotoMap[msg.senderId] ?? null}
                                   displayName={msg.senderDisplayName}
                                 />
                               )}

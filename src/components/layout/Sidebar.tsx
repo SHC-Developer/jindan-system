@@ -23,7 +23,7 @@ import type { SidebarProps } from '../../types/layout';
 import type { Project } from '../../types/project';
 import { LOGO_URL, MIDDLE_MENUS } from '../../constants/navigation';
 import { uploadProfilePhoto, isProfilePhotoType, PROFILE_PHOTO_MAX_SIZE } from '../../lib/storage';
-import { updateAuthProfilePhoto } from '../../lib/auth';
+import { updateAuthProfilePhoto, updateUserPhotoURLInFirestore } from '../../lib/auth';
 
 export function Sidebar({
   projects,
@@ -411,6 +411,7 @@ export function Sidebar({
             try {
               const result = await uploadProfilePhoto(file, user.uid);
               await updateAuthProfilePhoto(result.downloadUrl);
+              await updateUserPhotoURLInFirestore(user.uid, result.downloadUrl);
               onProfilePhotoUpdate(result.downloadUrl);
             } catch (err) {
               const message = err instanceof Error ? err.message : '프로필 사진 업로드에 실패했습니다.';

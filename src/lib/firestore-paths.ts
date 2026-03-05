@@ -93,6 +93,11 @@ export function getUsersRef(): CollectionReference {
   return collection(getDbInstance(), USERS_COLLECTION);
 }
 
+/** users/{uid} 문서 참조 (프로필 조회 등) */
+export function getUserDocRef(uid: string): DocumentReference {
+  return doc(getDbInstance(), USERS_COLLECTION, uid);
+}
+
 // --- 출퇴근 기록 (전역) ---
 const WORKLOGS = 'workLogs';
 

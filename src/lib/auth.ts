@@ -5,7 +5,7 @@ import {
   updateProfile,
   type User as FirebaseUser,
 } from 'firebase/auth';
-import { doc, getDoc, getDocFromServer, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, getDocFromServer, onSnapshot, updateDoc } from 'firebase/firestore';
 import { getAuthInstance, getDbInstance, USERS_COLLECTION } from './firebase';
 import type { AppUser, UserRole } from '../types/user';
 
@@ -19,13 +19,14 @@ function dataToAppUser(
   const role = (data?.role as UserRole) ?? DEFAULT_ROLE;
   const displayName = (data?.displayName as string | undefined) ?? firebaseUser.displayName ?? null;
   const jobTitle = (data?.jobTitle as string | undefined) ?? null;
+  const photoURL = (data?.photoURL as string | undefined) ?? firebaseUser.photoURL ?? null;
   return {
     uid: firebaseUser.uid,
     email: firebaseUser.email ?? null,
     displayName,
     jobTitle,
     role,
-    photoURL: firebaseUser.photoURL ?? null,
+    photoURL,
   };
 }
 
@@ -94,4 +95,14 @@ export async function updateAuthProfilePhoto(photoURL: string | null): Promise<v
   const user = auth.currentUser;
   if (!user) return;
   await updateProfile(user, { photoURL: photoURL ?? '' });
+}
+
+/**
+ * Firestore users/{uid}에 프로필 사진 URL을 저장한다. 채팅에서 발신자별 최신 프로필 조회용.
+ * 본인 uid만 update 가능 (Firestore 규칙).
+ */
+export async function updateUserPhotoURLInFirestore(uid: string, photoURL: string | null): Promise<void> {
+  const db = getDbInstance();
+  const userRef = doc(db, USERS_COLLECTION, uid);
+  await updateDoc(userRef, { photoURL: photoURL ?? null });
 }
