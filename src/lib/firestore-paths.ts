@@ -123,3 +123,16 @@ export function getUserLeaveDaysRef(uid: string): CollectionReference {
 export function getUserLeaveDayRef(uid: string, dateKey: string): DocumentReference {
   return doc(getDbInstance(), USERS_COLLECTION, uid, LEAVE_DAYS, dateKey);
 }
+
+// --- 업무일지 (일일 저널, 전역) ---
+const DAILY_JOURNALS = 'dailyJournals';
+
+/** 전역 dailyJournals 컬렉션 참조 */
+export function getDailyJournalsRef(): CollectionReference {
+  return collection(getDbInstance(), DAILY_JOURNALS);
+}
+
+/** dailyJournals/{docId} 문서 참조. docId = userId_dateKey */
+export function getDailyJournalRef(userId: string, dateKey: string): DocumentReference {
+  return doc(getDbInstance(), DAILY_JOURNALS, `${userId}_${dateKey}`);
+}

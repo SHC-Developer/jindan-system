@@ -671,10 +671,10 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                               {r.totalMs != null ? formatDurationMs(r.totalMs) : '-'}
                             </td>
                             <td className="py-2 px-2 text-gray-700 whitespace-nowrap">{r.note || '-'}</td>
-                            <td className="py-2 px-2 text-gray-600 max-w-[140px] truncate whitespace-nowrap" title={r.tardinessReason ?? ''}>
+                            <td className="py-2 px-2 text-gray-600 min-w-[140px] max-w-[280px] whitespace-normal break-words align-top">
                               {r.tardinessReason ?? '-'}
                             </td>
-                            <td className="py-2 px-2 text-gray-600 max-w-[140px] truncate whitespace-nowrap" title={r.overtimeReason ?? ''}>
+                            <td className="py-2 px-2 text-gray-600 min-w-[140px] max-w-[280px] whitespace-normal break-words align-top">
                               {r.overtimeReason ?? '-'}
                             </td>
                           </tr>

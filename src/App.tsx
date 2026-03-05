@@ -12,6 +12,8 @@ import { WorkAssignMyListView } from './features/work-assign/WorkAssignMyListVie
 import { TaskDetailPage } from './features/work-assign/TaskDetailPage';
 import { WorkLogDashboardView } from './features/worklog/WorkLogDashboardView';
 import { WorkLogAdminView } from './features/worklog/WorkLogAdminView';
+import { DailyJournalWriteView } from './features/daily-journal/DailyJournalWriteView';
+import { DailyJournalAdminView } from './features/daily-journal/DailyJournalAdminView';
 import { ProjectChatContent } from './features/project-chat/ProjectChatContent';
 import { GeneralChatPage } from './features/general-chat/GeneralChatPage';
 import { CadChatPage } from './features/cad-chat/CadChatPage';
@@ -74,6 +76,10 @@ function buildSidebarProps(
       navigate('/work-assign');
       setActiveSection('work-assign');
     },
+    onNavigateToDailyJournal: () => {
+      navigate('/daily-journal');
+      setActiveSection('daily-journal');
+    },
     onNavigateToWorkLog: () => {
       navigate('/work-log');
       setActiveSection('worklog');
@@ -128,6 +134,10 @@ export default function App() {
     }
     if (path === '/work-assign') {
       setActiveSection('work-assign');
+      return;
+    }
+    if (path === '/daily-journal') {
+      setActiveSection('daily-journal');
       return;
     }
     if (path === '/work-log') {
@@ -215,6 +225,12 @@ export default function App() {
     ) : (
       <WorkLogDashboardView currentUser={user} />
     )
+  ) : activeSection === 'daily-journal' ? (
+    user.role === 'admin' ? (
+      <DailyJournalAdminView currentUser={user} />
+    ) : (
+      <DailyJournalWriteView currentUser={user} />
+    )
   ) : activeSection === 'admin-page' ? (
     <AdminPage />
   ) : activeSection === 'general-chat' || activeSection === 'cad' ? null : activeSection === 'project' && selectedProject ? (
@@ -273,7 +289,7 @@ export default function App() {
       <NotificationToastContainer />
         <Sidebar {...sidebarProps} />
       <div className="flex flex-1 min-w-0 overflow-hidden w-full">
-        {isTaskDetailPage || activeSection === 'work-assign' || activeSection === 'worklog' || activeSection === 'admin-page' ? (
+        {isTaskDetailPage || activeSection === 'work-assign' || activeSection === 'worklog' || activeSection === 'daily-journal' || activeSection === 'admin-page' ? (
           <div className="w-full h-full min-h-0 min-w-0 overflow-hidden">{mainContent}</div>
         ) : (
           mainContent

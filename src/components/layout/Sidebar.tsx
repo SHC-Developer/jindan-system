@@ -11,6 +11,7 @@ import {
   CheckSquare,
   Clock,
   Shield,
+  FileText,
   Star,
   LogOut,
   Loader2,
@@ -40,6 +41,7 @@ export function Sidebar({
   onNavigateToCad,
   onNavigateToProject,
   onNavigateToWorkAssign,
+  onNavigateToDailyJournal,
   onNavigateToWorkLog,
   onNavigateToAdmin,
   onCreateProject,
@@ -356,6 +358,21 @@ export function Sidebar({
         )}
 
         <div className="px-2 mt-4 pt-4 border-t border-gray-700/50 space-y-0.5">
+          {onNavigateToDailyJournal && (
+            <button
+              onClick={onNavigateToDailyJournal}
+              className={`w-full text-left px-2 py-1.5 rounded-md flex items-center text-sm transition-colors ${
+                activeSection === 'daily-journal'
+                  ? 'bg-brand-main text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+              }`}
+            >
+              <FileText size={16} className="mr-2 opacity-80" />
+              <span className="truncate">
+                {user.role === 'admin' ? '업무일지 확인' : '업무일지 작성하기'}
+              </span>
+            </button>
+          )}
           <button
             onClick={onNavigateToWorkAssign}
             className={`w-full text-left px-2 py-1.5 rounded-md flex items-center text-sm transition-colors ${

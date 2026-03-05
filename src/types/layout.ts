@@ -17,6 +17,7 @@ export interface MiddleMenu {
 export type ActiveSection =
   | 'project'
   | 'work-assign'
+  | 'daily-journal'
   | 'worklog'
   | 'general-chat'
   | 'cad'
@@ -40,6 +41,7 @@ export interface SidebarProps {
   onNavigateToCad?: () => void;
   onNavigateToProject: (project: Project) => void;
   onNavigateToWorkAssign: () => void;
+  onNavigateToDailyJournal?: () => void;
   onNavigateToWorkLog: () => void;
   onNavigateToAdmin: () => void;
   onCreateProject: (name: string) => Promise<Project>;

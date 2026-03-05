@@ -51,6 +51,14 @@ createRoot(document.getElementById('root')!).render(
           }
         />
         <Route
+          path="/daily-journal"
+          element={
+            <ProtectedRoute>
+              <AppWithToast />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/work-log"
           element={
             <ProtectedRoute>

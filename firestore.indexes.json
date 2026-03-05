@@ -55,6 +55,14 @@
         { "fieldPath": "status", "order": "ASCENDING" },
         { "fieldPath": "clockInAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "dailyJournals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "dateKey", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []
