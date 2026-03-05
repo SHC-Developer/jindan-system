@@ -13,7 +13,6 @@ import {
   Shield,
   Star,
   LogOut,
-  Settings,
   Loader2,
   X,
   User,
@@ -135,13 +134,22 @@ export function Sidebar({
 
   return (
     <div className="w-64 bg-brand-dark text-gray-300 flex flex-col h-full flex-shrink-0">
-      {/* Logo Area */}
-      <div className="h-14 flex items-center px-4 border-b border-gray-700/50 min-w-0" lang="ko">
+      {/* Logo Area - 클릭 시 공지사항/일반채팅(메인 홈)으로 이동 */}
+      <button
+        type="button"
+        onClick={() => {
+          onNavigateToGeneralChat ? onNavigateToGeneralChat() : setActiveSection('general-chat');
+        }}
+        className="h-14 w-full flex items-center px-4 border-b border-gray-700/50 min-w-0 text-left hover:bg-white/5 active:bg-white/10 transition-colors cursor-pointer"
+        lang="ko"
+        title="공지사항/일반채팅으로 이동"
+        aria-label="메인 홈, 공지사항/일반채팅으로 이동"
+      >
         <img src={LOGO_URL} alt="" className="w-6 h-6 rounded-md mr-2 object-contain flex-shrink-0" />
-        <span className="font-bold text-white tracking-tight whitespace-nowrap flex-shrink-0" title="KDVO 안전진단팀">
+        <span className="font-bold text-white tracking-tight whitespace-nowrap flex-shrink-0">
           KDVO 안전진단팀
         </span>
-      </div>
+      </button>
 
       {/* Scrollable Area */}
       <div className="flex-1 overflow-y-auto py-4">
@@ -454,7 +462,7 @@ export function Sidebar({
             {user.role === 'admin' ? '관리자' : '사용자'}
           </div>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-0.5 flex-shrink-0">
           {onProfilePhotoDelete && (
             <button
               type="button"
@@ -476,7 +484,6 @@ export function Sidebar({
           >
             <LogOut size={16} />
           </button>
-          <Settings size={16} className="text-gray-400 hover:text-white cursor-pointer" />
         </div>
       </div>
     </div>
