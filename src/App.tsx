@@ -17,6 +17,7 @@ import { DailyJournalAdminView } from './features/daily-journal/DailyJournalAdmi
 import { ProjectChatContent } from './features/project-chat/ProjectChatContent';
 import { GeneralChatPage } from './features/general-chat/GeneralChatPage';
 import { CadChatPage } from './features/cad-chat/CadChatPage';
+import { canAccessAdmin } from './lib/auth';
 import type { AppUser } from './types/user';
 import type { Project } from './types/project';
 import type { ActiveSection, MiddleMenuId } from './types/layout';
@@ -214,19 +215,19 @@ export default function App() {
   const mainContent = isTaskDetailPage ? (
     <TaskDetailPage />
   ) : activeSection === 'work-assign' ? (
-    user.role === 'admin' ? (
+    canAccessAdmin(user) ? (
       <WorkAssignAdminView currentUser={user} />
     ) : (
       <WorkAssignMyListView currentUser={user} />
     )
   ) : activeSection === 'worklog' ? (
-    user.role === 'admin' ? (
+    canAccessAdmin(user) ? (
       <WorkLogAdminView currentUser={user} />
     ) : (
       <WorkLogDashboardView currentUser={user} />
     )
   ) : activeSection === 'daily-journal' ? (
-    user.role === 'admin' ? (
+    canAccessAdmin(user) ? (
       <DailyJournalAdminView currentUser={user} />
     ) : (
       <DailyJournalWriteView currentUser={user} />

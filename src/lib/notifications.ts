@@ -1,7 +1,7 @@
 import { getDocs, deleteDoc, addDoc, query, where } from 'firebase/firestore';
 import { getUsersRef, getUserNotificationsRef } from './firestore-paths';
 
-/** 관리자 전원에게 알림 생성 (출근 요청, 연차 승인 요청 등) */
+/** 관리자·특수 계정 전원에게 알림 생성 (출근 요청, 연차 승인 요청 등) */
 export async function notifyAdmins(payload: {
   type: 'worklog_clockin' | 'leave_approval_request';
   title: string;
@@ -10,8 +10,14 @@ export async function notifyAdmins(payload: {
   leaveDateKey?: string;
 }): Promise<void> {
   const usersRef = getUsersRef();
-  const adminQuery = query(usersRef, where('role', '==', 'admin'));
-  const snapshot = await getDocs(adminQuery);
+  const [adminSnap, specialistSnap] = await Promise.all([
+    getDocs(query(usersRef, where('role', '==', 'admin'))),
+    getDocs(query(usersRef, where('specialist', '==', true))),
+  ]);
+  const adminUids = new Set([
+    ...adminSnap.docs.map((d) => d.id),
+    ...specialistSnap.docs.map((d) => d.id),
+  ]);
   const doc: Record<string, unknown> = {
     type: payload.type,
     taskId: '',
@@ -22,7 +28,7 @@ export async function notifyAdmins(payload: {
     ...(payload.leaveUserDisplayName != null && { leaveUserDisplayName: payload.leaveUserDisplayName }),
     ...(payload.leaveDateKey != null && { leaveDateKey: payload.leaveDateKey }),
   };
-  await Promise.all(snapshot.docs.map((d) => addDoc(getUserNotificationsRef(d.id), doc)));
+  await Promise.all([...adminUids].map((uid) => addDoc(getUserNotificationsRef(uid), doc)));
 }
 
 /** 모든 사용자의 notifications 서브컬렉션 문서를 일괄 삭제 (관리자 전용) */

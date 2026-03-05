@@ -1,6 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 관리자(role=='admin') 또는 특수 계정(specialist==true) 여부
+    function isAdminOrSpecialist() {
+      let u = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return u.role == 'admin' || u.specialist == true;
+    }
+
     // 사용자: 로그인한 사용자만 읽기. update는 본인 문서만 (프로필 사진 URL 동기화용)
     match /users/{userId} {
       allow read: if request.auth != null;
@@ -18,22 +24,18 @@ service cloud.firestore {
     // 알림: 본인 것만 읽기/수정, 생성은 누구나(지시·완료 시), 삭제는 본인 또는 관리자(관리자 페이지 일괄 삭제용)
     match /users/{userId}/notifications/{notificationId} {
       allow read, update: if request.auth != null
-        && (request.auth.uid == userId
-            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+        && (request.auth.uid == userId || isAdminOrSpecialist());
       allow create: if request.auth != null;
       allow delete: if request.auth != null
-        && (request.auth.uid == userId
-            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+        && (request.auth.uid == userId || isAdminOrSpecialist());
     }
 
     // 출퇴근 기록: 로그인 사용자 읽기/생성. 수정은 본인 또는 관리자. 삭제는 관리자만(출근 상태 리셋)
     match /workLogs/{logId} {
       allow read, create: if request.auth != null;
       allow update: if request.auth != null
-        && (resource.data.userId == request.auth.uid
-            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
-      allow delete: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        && (resource.data.userId == request.auth.uid || isAdminOrSpecialist());
+      allow delete: if request.auth != null && isAdminOrSpecialist();
     }
 
     // 업무일지(일일 저널): 본인 문서 읽기/쓰기. 관리자는 모든 문서 읽기만
@@ -42,7 +44,7 @@ service cloud.firestore {
       allow read: if request.auth != null
         && (resource == null
             || resource.data.userId == request.auth.uid
-            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+            || isAdminOrSpecialist());
       allow create, update: if request.auth != null && request.resource.data.userId == request.auth.uid;
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
@@ -50,32 +52,28 @@ service cloud.firestore {
     // 연차: 본인 create/delete(pending만). 관리자 read/update(승인)/delete(승인취소). 승인된 연차는 직원이 삭제 불가
     match /users/{userId}/leaveDays/{dateKey} {
       allow read: if request.auth != null
-        && (request.auth.uid == userId
-            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+        && (request.auth.uid == userId || isAdminOrSpecialist());
       allow create: if request.auth != null && request.auth.uid == userId;
-      allow update: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow update: if request.auth != null && isAdminOrSpecialist();
       allow delete: if request.auth != null
         && (request.auth.uid == userId
             && (!('status' in resource.data) || resource.data.status != 'approved')
-            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+            || isAdminOrSpecialist());
     }
 
     // 채팅: 로그인한 사용자만 프로젝트/중메뉴/메시지 읽기·쓰기
     // 프로젝트: 읽기·생성은 로그인 사용자, 수정·삭제는 관리자만
     match /projects/{projectId} {
       allow read, create: if request.auth != null;
-      allow update, delete: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow update, delete: if request.auth != null && isAdminOrSpecialist();
       match /subMenus/{subMenuId} {
         allow read: if request.auth != null;
         match /messages/{messageId} {
           allow read, create: if request.auth != null;
           allow update: if false;
-          // 관리자는 모든 메시지 삭제, 일반 사용자는 본인 발신 메시지만 삭제
+          // 관리자/특수 계정은 모든 메시지 삭제, 일반 사용자는 본인 발신 메시지만 삭제
           allow delete: if request.auth != null
-            && (resource.data.senderId == request.auth.uid
-                || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+            && (resource.data.senderId == request.auth.uid || isAdminOrSpecialist());
         }
         // 공지 고정 목록 (pinnedMessageIds)
         match /channelMeta/{docId} {

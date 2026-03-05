@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { onSnapshot, addDoc, deleteDoc, serverTimestamp, orderBy, query } from 'firebase/firestore';
 import { getMessagesRef, getMessageRef } from '../lib/firestore-paths';
 import { uploadChatFile, deleteTaskFileByUrl, type UploadProgressCallback } from '../lib/storage';
+import { canAccessAdmin } from '../lib/auth';
 import type { ChatMessage } from '../types/chat';
 import type { AppUser } from '../types/user';
 
@@ -22,10 +23,10 @@ interface UseChatResult {
   clearError: () => void;
 }
 
-/** 관리자는 모든 메시지, 일반 사용자는 본인 발신 메시지만 삭제 가능 */
+/** 관리자/특수 계정은 모든 메시지, 일반 사용자는 본인 발신 메시지만 삭제 가능 */
 export function canDeleteMessage(msg: ChatMessage, user: AppUser | null): boolean {
   if (!user) return false;
-  if (user.role === 'admin') return true;
+  if (canAccessAdmin(user)) return true;
   return msg.senderId === user.uid;
 }
 

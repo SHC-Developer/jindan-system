@@ -33,7 +33,7 @@ export interface SidebarProps {
   setSelectedMenu: (m: MiddleMenuId) => void;
   activeSection: ActiveSection;
   setActiveSection: (s: ActiveSection) => void;
-  user: { uid: string; displayName: string | null; jobTitle: string | null; role: 'admin' | 'general'; photoURL: string | null };
+  user: { uid: string; displayName: string | null; jobTitle: string | null; role: 'admin' | 'general'; photoURL: string | null; isSpecialist?: boolean };
   onLogout: () => void;
   onProfilePhotoUpdate?: (url: string) => void;
   onProfilePhotoDelete?: () => void;

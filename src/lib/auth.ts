@@ -20,6 +20,7 @@ function dataToAppUser(
   const displayName = (data?.displayName as string | undefined) ?? firebaseUser.displayName ?? null;
   const jobTitle = (data?.jobTitle as string | undefined) ?? null;
   const photoURL = (data?.photoURL as string | undefined) ?? firebaseUser.photoURL ?? null;
+  const isSpecialist = data?.specialist === true;
   return {
     uid: firebaseUser.uid,
     email: firebaseUser.email ?? null,
@@ -27,12 +28,19 @@ function dataToAppUser(
     jobTitle,
     role,
     photoURL,
+    isSpecialist,
   };
+}
+
+/** 관리자 또는 특수 계정(specialist)인 경우 true. 이 경우 admin 페이지·관리자 메뉴 접근 가능 */
+export function canAccessAdmin(user: { role: UserRole; isSpecialist?: boolean }): boolean {
+  return user.role === 'admin' || user.isSpecialist === true;
 }
 
 /**
  * Firestore users/{uid} 문서 필드 (영문, 대소문자 정확히 일치해야 함):
  * - role: "admin" | "general"
+ * - specialist: boolean (true면 admin·general 동시 접근 가능, 선택)
  * - displayName: string (이름)
  * - jobTitle: string (직급. 예: 대리, 팀장)
  * 한글 필드명(이름, 직급, 역할)은 인식되지 않습니다.

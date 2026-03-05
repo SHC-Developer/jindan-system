@@ -6,7 +6,7 @@ import { createEmptyGoals } from '../../types/dailyJournal';
 import type { DailyJournalGoal } from '../../types/dailyJournal';
 import type { AppUser } from '../../types/user';
 import { RichTextEditor } from './RichTextEditor';
-import { Loader2, Plus, FileText, Calendar, ListChecks, Lightbulb, History } from 'lucide-react';
+import { Loader2, Plus, Minus, FileText, ListChecks, Lightbulb, History } from 'lucide-react';
 
 const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -66,6 +66,10 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
     setGoals((prev) => [...prev, { text: '', checked: false }]);
   }, []);
 
+  const removeGoal = useCallback(() => {
+    setGoals((prev) => (prev.length > 0 ? prev.slice(0, -1) : prev));
+  }, []);
+
   const updateGoal = useCallback((index: number, updates: Partial<DailyJournalGoal>) => {
     setGoals((prev) =>
       prev.map((g, i) => (i === index ? { ...g, ...updates } : g))
@@ -84,7 +88,12 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
         tomorrowPlan,
         memo,
       });
-      setSaveMessage({ type: 'success', text: '저장되었습니다.' });
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      const s = now.getSeconds();
+      const timeStr = `${h}시 ${m}분 ${s}초`;
+      setSaveMessage({ type: 'success', text: `저장되었습니다. ${timeStr}` });
       refetch();
     } catch (e) {
       setSaveMessage({
@@ -196,14 +205,25 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
               <ListChecks size={18} className="text-brand-sub" />
               오늘의 주요 목표
             </h2>
-            <button
-              type="button"
-              onClick={addGoal}
-              className="p-2 rounded-lg border border-brand-sub bg-brand-sub/10 text-brand-main hover:bg-brand-sub/20"
-              title="목표 추가"
-            >
-              <Plus size={20} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={removeGoal}
+                disabled={goals.length === 0}
+                className="p-2 rounded-lg border border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                title="목표 삭제"
+              >
+                <Minus size={20} />
+              </button>
+              <button
+                type="button"
+                onClick={addGoal}
+                className="p-2 rounded-lg border border-brand-sub bg-brand-sub/10 text-brand-main hover:bg-brand-sub/20"
+                title="목표 추가"
+              >
+                <Plus size={20} />
+              </button>
+            </div>
           </div>
           <ul className="space-y-2">
             {goals.map((goal, i) => (

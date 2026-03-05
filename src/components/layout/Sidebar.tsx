@@ -22,6 +22,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import type { SidebarProps } from '../../types/layout';
 import type { Project } from '../../types/project';
 import { LOGO_URL, MIDDLE_MENUS } from '../../constants/navigation';
+import { canAccessAdmin } from '../../lib/auth';
 import { uploadProfilePhoto, isProfilePhotoType, PROFILE_PHOTO_MAX_SIZE } from '../../lib/storage';
 import { updateAuthProfilePhoto, updateUserPhotoURLInFirestore } from '../../lib/auth';
 
@@ -85,7 +86,7 @@ export function Sidebar({
 
   const handleDoubleClick = (e: React.MouseEvent, project: Project) => {
     e.stopPropagation();
-    if (user.role !== 'admin') return;
+    if (!canAccessAdmin(user)) return;
     setEditingProjectId(project.id);
     setEditingName(project.name);
   };
@@ -108,7 +109,7 @@ export function Sidebar({
   const handleDelete = useCallback(
     async (project: Project) => {
       setContextMenu(null);
-      if (user.role !== 'admin') return;
+      if (!canAccessAdmin(user)) return;
       if (!window.confirm(`"${project.name}" 프로젝트를 삭제하시겠습니까? 관련 채팅 등 모든 데이터가 삭제됩니다.`)) return;
       try {
         await onDeleteProject(project.id);
@@ -116,7 +117,7 @@ export function Sidebar({
         console.error(err);
       }
     },
-    [user.role, onDeleteProject]
+    [user, onDeleteProject]
   );
 
   const handleCreateProject = useCallback(async () => {
@@ -298,7 +299,7 @@ export function Sidebar({
             >
               <Plus size={14} /> 새 프로젝트
             </button>
-            {contextMenu.project && user.role === 'admin' && (
+            {contextMenu.project && canAccessAdmin(user) && (
               <>
                 <button
                   type="button"
@@ -369,7 +370,7 @@ export function Sidebar({
             >
               <FileText size={16} className="mr-2 opacity-80" />
               <span className="truncate">
-                {user.role === 'admin' ? '업무일지 확인' : '업무일지 작성하기'}
+                {canAccessAdmin(user) ? '업무일지 확인' : '업무일지 작성하기'}
               </span>
             </button>
           )}
@@ -383,7 +384,7 @@ export function Sidebar({
           >
             <CheckSquare size={16} className="mr-2 opacity-80" />
             <span className="truncate">
-              {user.role === 'admin' ? '업무 지시하기(현황)' : '업무 지시사항 확인'}
+              {canAccessAdmin(user) ? '업무 지시하기(현황)' : '업무 지시사항 확인'}
             </span>
           </button>
           <button
@@ -397,7 +398,7 @@ export function Sidebar({
             <Clock size={16} className="mr-2 opacity-80" />
             <span className="truncate">출퇴근 기록부</span>
           </button>
-          {user.role === 'admin' && (
+          {canAccessAdmin(user) && (
             <button
               onClick={onNavigateToAdmin}
               className={`w-full text-left px-2 py-1.5 rounded-md flex items-center text-sm transition-colors ${
@@ -471,12 +472,12 @@ export function Sidebar({
             <span className="truncate">
               {[user.displayName ?? '이름 없음', user.jobTitle].filter(Boolean).join(' ')}
             </span>
-            {user.role === 'admin' && (
+            {canAccessAdmin(user) && (
               <Star size={14} className="text-red-500 flex-shrink-0 fill-red-500" aria-hidden />
             )}
           </div>
           <div className="text-xs text-gray-400 truncate">
-            {user.role === 'admin' ? '관리자' : '사용자'}
+            {user.isSpecialist ? '관리자·직원' : user.role === 'admin' ? '관리자' : '사용자'}
           </div>
         </div>
         <div className="flex items-center gap-0.5 flex-shrink-0">

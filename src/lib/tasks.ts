@@ -86,11 +86,17 @@ export async function submitTask(
   const taskTitle = (taskData?.title as string) ?? '업무';
 
   const usersRef = getUsersRef();
-  const adminQuery = query(usersRef, where('role', '==', 'admin'));
-  const snapshot = await getDocs(adminQuery);
+  const [adminSnap, specialistSnap] = await Promise.all([
+    getDocs(query(usersRef, where('role', '==', 'admin'))),
+    getDocs(query(usersRef, where('specialist', '==', true))),
+  ]);
+  const adminUids = new Set([
+    ...adminSnap.docs.map((d) => d.id),
+    ...specialistSnap.docs.map((d) => d.id),
+  ]);
 
-  for (const d of snapshot.docs) {
-    await createNotification(d.id, {
+  for (const uid of adminUids) {
+    await createNotification(uid, {
       type: 'task_completed',
       taskId,
       title: taskTitle,

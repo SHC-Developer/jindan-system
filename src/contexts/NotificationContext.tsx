@@ -2,6 +2,7 @@ import React, { createContext, useContext } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useNotifications } from '../hooks/useNotifications';
 import { useToastContext } from './ToastContext';
+import { canAccessAdmin } from '../lib/auth';
 
 export interface NotificationContextValue {
   deleteNotification: (notificationId: string) => Promise<void>;
@@ -49,7 +50,7 @@ export function NotificationProvider({ children, onNavigateToWorkLog }: Notifica
   const value: NotificationContextValue = {
     deleteNotification,
     deleteAllNotifications,
-    isAdmin: user?.role === 'admin',
+    isAdmin: user ? canAccessAdmin(user) : false,
     onNavigateToWorkLog,
   };
 
