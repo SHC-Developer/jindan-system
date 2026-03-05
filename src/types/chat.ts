@@ -5,6 +5,8 @@ export interface ChatMessagePayload {
   senderId: string;
   senderDisplayName: string;
   senderJobTitle: string | null;
+  /** 발신자 프로필 사진 URL (선택, 채팅 목록 표시용) */
+  senderPhotoURL: string | null;
   text: string;
   /** serverTimestamp() 사용 시 로컬 스냅샷에서 null일 수 있음 */
   createdAt: Timestamp | null;

@@ -16,11 +16,14 @@ import {
   Settings,
   Loader2,
   X,
+  User,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { SidebarProps } from '../../types/layout';
 import type { Project } from '../../types/project';
 import { LOGO_URL, MIDDLE_MENUS } from '../../constants/navigation';
+import { uploadProfilePhoto, isProfilePhotoType, PROFILE_PHOTO_MAX_SIZE } from '../../lib/storage';
+import { updateAuthProfilePhoto } from '../../lib/auth';
 
 export function Sidebar({
   projects,
@@ -46,8 +49,12 @@ export function Sidebar({
   onAfterRename,
   isProjectsExpanded: isProjectsExpandedProp,
   setProjectsExpanded: setProjectsExpandedProp,
+  onProfilePhotoUpdate,
+  onProfilePhotoDelete,
 }: SidebarProps) {
   const [localExpanded, setLocalExpanded] = useState(true);
+  const [profileUploading, setProfileUploading] = useState(false);
+  const profileFileInputRef = useRef<HTMLInputElement>(null);
   const isProjectsExpanded =
     setProjectsExpandedProp != null ? (isProjectsExpandedProp ?? true) : localExpanded;
   const setIsProjectsExpanded = setProjectsExpandedProp ?? setLocalExpanded;
@@ -382,11 +389,57 @@ export function Sidebar({
       </div>
 
       <div className="p-4 bg-black/20 flex items-center">
-        <img
-          src="https://picsum.photos/seed/me/32/32"
-          alt="My Profile"
-          className="w-8 h-8 rounded-full bg-gray-500 mr-2 flex-shrink-0"
+        <input
+          ref={profileFileInputRef}
+          type="file"
+          accept="image/jpeg,image/png"
+          className="hidden"
+          aria-label="프로필 사진 선택"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            e.target.value = '';
+            if (!file || !onProfilePhotoUpdate) return;
+            if (!isProfilePhotoType(file.type)) {
+              window.alert('프로필 사진은 JPG, PNG 형식만 지원합니다.');
+              return;
+            }
+            if (file.size > PROFILE_PHOTO_MAX_SIZE) {
+              window.alert('프로필 사진은 20MB 이하로 첨부해 주세요.');
+              return;
+            }
+            setProfileUploading(true);
+            try {
+              const result = await uploadProfilePhoto(file, user.uid);
+              await updateAuthProfilePhoto(result.downloadUrl);
+              onProfilePhotoUpdate(result.downloadUrl);
+            } catch (err) {
+              const message = err instanceof Error ? err.message : '프로필 사진 업로드에 실패했습니다.';
+              window.alert(message);
+            } finally {
+              setProfileUploading(false);
+            }
+          }}
         />
+        <button
+          type="button"
+          onClick={() => profileFileInputRef.current?.click()}
+          disabled={profileUploading}
+          className="w-8 h-8 rounded-full mr-2 flex-shrink-0 overflow-hidden bg-[#37392E] flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-[#28AFB0] disabled:opacity-60"
+          title="프로필 사진 변경"
+          aria-label="프로필 사진 변경"
+        >
+          {profileUploading ? (
+            <Loader2 size={18} className="text-white animate-spin" />
+          ) : user.photoURL ? (
+            <img
+              src={user.photoURL}
+              alt="프로필"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <User size={18} className="text-[#EEE5E5]" />
+          )}
+        </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 text-sm font-medium text-white truncate">
             <span className="truncate">
@@ -401,6 +454,18 @@ export function Sidebar({
           </div>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
+          {onProfilePhotoDelete && (
+            <button
+              type="button"
+              onClick={onProfilePhotoDelete}
+              disabled={profileUploading || !user.photoURL}
+              className="p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-md transition-colors disabled:opacity-50 disabled:pointer-events-none"
+              title="프로필 사진 삭제"
+              aria-label="프로필 사진 삭제"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
           <button
             type="button"
             onClick={onLogout}

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { getAuthInstance, isFirebaseConfigured } from '../lib/firebase';
-import { fetchAppUser, subscribeAppUser, signInWithGoogle as authSignInWithGoogle, signOut as authSignOut } from '../lib/auth';
+import { fetchAppUser, subscribeAppUser, signInWithGoogle as authSignInWithGoogle, signOut as authSignOut, updateAuthProfilePhoto } from '../lib/auth';
+import { deleteProfilePhoto } from '../lib/storage';
 import type { AppUser } from '../types/user';
 
 interface UseAuthResult {
@@ -11,6 +12,8 @@ interface UseAuthResult {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   clearError: () => void;
+  updateProfilePhotoUrl: (url: string | null) => void;
+  deleteProfilePhotoAndUpdate: () => Promise<void>;
 }
 
 export function useAuth(): UseAuthResult {
@@ -90,5 +93,23 @@ export function useAuth(): UseAuthResult {
     }
   }, []);
 
-  return { user, loading, error, signInWithGoogle, signOut, clearError };
+  const updateProfilePhotoUrl = useCallback((url: string | null) => {
+    setUser((prev) => (prev ? { ...prev, photoURL: url } : null));
+  }, []);
+
+  const deleteProfilePhotoAndUpdate = useCallback(async () => {
+    const u = user;
+    if (!u) return;
+    setError(null);
+    try {
+      await deleteProfilePhoto(u.uid);
+      await updateAuthProfilePhoto(null);
+      setUser((prev) => (prev ? { ...prev, photoURL: null } : null));
+    } catch (e) {
+      const message = e instanceof Error ? e.message : '프로필 사진 삭제에 실패했습니다.';
+      setError(message);
+    }
+  }, [user]);
+
+  return { user, loading, error, signInWithGoogle, signOut, clearError, updateProfilePhotoUrl, deleteProfilePhotoAndUpdate };
 }

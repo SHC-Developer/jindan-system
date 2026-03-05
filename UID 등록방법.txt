@@ -1,0 +1,19 @@
+문서 추가:
+Document ID: 위에서 메모한 UID(그대로 붙여넣기)
+필드:
+role (string) → 관리자면 admin, 일반이면 general
+Save
+나머지 사용자(UID)도 같은 users 컬렉션에 문서 1개씩 추가
+Document ID = UID
+role = admin 또는 general
+
+
+SpJU2c2BueOrDeABHEAQBxxtuUq2 - 박상현
+jjhyJQSlJKPJ3kUI5KKROfzHII53 - 이예린
+CPsSyq5X8CfmQVE6IqBRB4nRHxr1 - 이찬솔
+Hs2uasPOonUxgUge0aAAqfzkBop2 - 문성진
+83cC6XNRtWREfwpS5fMfiLtqkDZ2 - 나상우
+ikLMt5rEpSe3l9eQC7GAfz1xzhs2 - 이소영
+
+
+npm run set-user -- "ikLMt5rEpSe3l9eQC7GAfz1xzhs2" "이소영" "사원" general

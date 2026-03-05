@@ -32,8 +32,10 @@ export interface SidebarProps {
   setSelectedMenu: (m: MiddleMenuId) => void;
   activeSection: ActiveSection;
   setActiveSection: (s: ActiveSection) => void;
-  user: { displayName: string | null; jobTitle: string | null; role: 'admin' | 'general' };
+  user: { uid: string; displayName: string | null; jobTitle: string | null; role: 'admin' | 'general'; photoURL: string | null };
   onLogout: () => void;
+  onProfilePhotoUpdate?: (url: string) => void;
+  onProfilePhotoDelete?: () => void;
   onNavigateToGeneralChat?: () => void;
   onNavigateToCad?: () => void;
   onNavigateToProject: (project: Project) => void;

@@ -17,6 +17,7 @@ import { formatFileSize } from '../../lib/storage';
 import { validateChatFile, createPendingFile } from '../../lib/chat-file';
 import { ImageLightbox } from '../../components/chat/ImageLightbox';
 import { FileAttachment } from '../../components/chat/FileAttachment';
+import { ChatMessageAvatar } from '../../components/chat/ChatMessageAvatar';
 import { ChatSearchBar } from '../../components/chat/ChatSearchBar';
 import type { AppUser } from '../../types/user';
 import type { ChatMessage } from '../../types/chat';
@@ -371,9 +372,10 @@ export function ProjectChatContent({
                           className={`flex ${isMe ? 'justify-end' : 'justify-start'} group ${isCurrentMatch ? 'ring-2 ring-brand-main ring-inset rounded-lg' : ''}`}
                         >
                           {!isMe && (
-                            <div className="w-9 h-9 rounded-full mr-3 mt-1 bg-brand-sub/20 flex items-center justify-center text-brand-dark text-sm font-semibold flex-shrink-0">
-                              {(msg.senderDisplayName?.[0] ?? '?')}
-                            </div>
+                            <ChatMessageAvatar
+                              photoURL={msg.senderPhotoURL ?? null}
+                              displayName={msg.senderDisplayName}
+                            />
                           )}
                           <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
                             {!isMe && (

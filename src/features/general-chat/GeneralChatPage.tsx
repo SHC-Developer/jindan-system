@@ -23,6 +23,7 @@ import { RightPanel } from '../../components/layout/RightPanel';
 import { ImageLightbox } from '../../components/chat/ImageLightbox';
 import { FileAttachment } from '../../components/chat/FileAttachment';
 import { ChatSearchBar } from '../../components/chat/ChatSearchBar';
+import { ChatMessageAvatar } from '../../components/chat/ChatMessageAvatar';
 import type { AppUser } from '../../types/user';
 import type { ChatMessage } from '../../types/chat';
 import type { SidebarProps } from '../../types/layout';
@@ -370,9 +371,10 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
                               }}
                             >
                               {!isMe && (
-                                <div className="w-9 h-9 rounded-full mr-3 mt-1 bg-brand-sub/20 flex items-center justify-center text-brand-dark text-sm font-semibold flex-shrink-0">
-                                  {(msg.senderDisplayName?.[0] ?? '?')}
-                                </div>
+                                <ChatMessageAvatar
+                                  photoURL={msg.senderPhotoURL ?? null}
+                                  displayName={msg.senderDisplayName}
+                                />
                               )}
                               <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
                                 {!isMe && (
@@ -440,9 +442,10 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
                               }}
                             >
                               {!isMe && (
-                                <div className="w-9 h-9 rounded-full mr-3 mt-1 bg-brand-sub/20 flex items-center justify-center text-brand-dark text-sm font-semibold flex-shrink-0">
-                                  {(msg.senderDisplayName?.[0] ?? '?')}
-                                </div>
+                                <ChatMessageAvatar
+                                  photoURL={msg.senderPhotoURL ?? null}
+                                  displayName={msg.senderDisplayName}
+                                />
                               )}
                               <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
                                 {!isMe && (

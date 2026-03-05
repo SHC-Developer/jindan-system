@@ -37,7 +37,9 @@ function buildSidebarProps(
   handleLogout: () => void,
   onCreateProject: (name: string) => Promise<Project>,
   onUpdateProjectName: (projectId: string, name: string) => Promise<void>,
-  onDeleteProject: (projectId: string) => Promise<void>
+  onDeleteProject: (projectId: string) => Promise<void>,
+  onProfilePhotoUpdate: (url: string) => void,
+  onProfilePhotoDelete: () => Promise<void>
 ) {
   return {
   projects,
@@ -53,6 +55,8 @@ function buildSidebarProps(
   setProjectsExpanded: setIsProjectsExpanded,
   user,
   onLogout: handleLogout,
+  onProfilePhotoUpdate,
+  onProfilePhotoDelete,
     onNavigateToGeneralChat: () => {
       navigate('/general-chat');
       setActiveSection('general-chat');
@@ -87,7 +91,7 @@ function buildSidebarProps(
 }
 
 export default function App() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, updateProfilePhotoUrl, deleteProfilePhotoAndUpdate } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const {
@@ -192,7 +196,9 @@ export default function App() {
     handleLogout,
     onCreateProject,
     onUpdateProjectName,
-    onDeleteProject
+    onDeleteProject,
+    (url) => updateProfilePhotoUrl(url),
+    () => deleteProfilePhotoAndUpdate()
   );
 
   const mainContent = isTaskDetailPage ? (

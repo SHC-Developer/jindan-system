@@ -3,7 +3,14 @@ import type { UploadTaskSnapshot } from 'firebase/storage';
 import { getStorageInstance } from './firebase';
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+export const PROFILE_PHOTO_MAX_SIZE = 20 * 1024 * 1024; // 20 MB
 const UPLOAD_TIMEOUT_MS = 90_000; // 90초 후 타임아웃
+
+const PROFILE_PHOTO_ALLOWED_TYPES = ['image/jpeg', 'image/png'] as const;
+
+export function isProfilePhotoType(fileType: string): boolean {
+  return PROFILE_PHOTO_ALLOWED_TYPES.includes(fileType as (typeof PROFILE_PHOTO_ALLOWED_TYPES)[number]);
+}
 
 export interface UploadResult {
   downloadUrl: string;
@@ -86,6 +93,92 @@ export function formatFileSize(bytes: number): string {
 
 export function isImageFile(fileType: string): boolean {
   return fileType.startsWith('image/');
+}
+
+/** 프로필 사진 Storage 경로 (한 사용자당 하나, 덮어쓰기) */
+function getProfilePhotoStoragePath(uid: string): string {
+  return `profile-photos/${uid}/avatar`;
+}
+
+/**
+ * 프로필 사진을 Storage에서 삭제한다. 기존 이미지가 없어도 에러를 던지지 않는다.
+ */
+export async function deleteProfilePhoto(uid: string): Promise<void> {
+  const storage = getStorageInstance();
+  const storageRef = ref(storage, getProfilePhotoStoragePath(uid));
+  try {
+    await deleteObject(storageRef);
+  } catch (err: unknown) {
+    const code = err && typeof err === 'object' && 'code' in err ? (err as { code: string }).code : '';
+    if (code !== 'storage/object-not-found') throw err;
+  }
+}
+
+/**
+ * 프로필 사진을 Firebase Storage에 업로드한다. JPG/PNG만 허용, 20MB 이하.
+ * 업로드 전 기존 프로필 사진이 있으면 삭제한 뒤 새 파일을 올린다.
+ */
+export async function uploadProfilePhoto(
+  file: File,
+  uid: string,
+  onProgress?: UploadProgressCallback
+): Promise<UploadResult> {
+  if (!isProfilePhotoType(file.type)) {
+    throw new Error('프로필 사진은 JPG, PNG 형식만 지원합니다.');
+  }
+  if (file.size > PROFILE_PHOTO_MAX_SIZE) {
+    throw new Error(`프로필 사진은 20MB 이하로 첨부해 주세요. (현재: ${formatFileSize(file.size)})`);
+  }
+
+  await deleteProfilePhoto(uid);
+
+  const storage = getStorageInstance();
+  const storagePath = getProfilePhotoStoragePath(uid);
+  const storageRef = ref(storage, storagePath);
+
+  const uploadTask = uploadBytesResumable(storageRef, file, {
+    contentType: file.type,
+  });
+
+  let timeoutId: ReturnType<typeof setTimeout>;
+
+  const uploadPromise = new Promise<UploadResult>((resolve, reject) => {
+    uploadTask.on(
+      'state_changed',
+      (snapshot: UploadTaskSnapshot) => {
+        const percent = Math.round(
+          (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+        );
+        onProgress?.(percent);
+      },
+      (err) => reject(err),
+      async () => {
+        try {
+          const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve({
+            downloadUrl,
+            fileName: file.name,
+            fileSize: file.size,
+            fileType: file.type,
+          });
+        } catch (err) {
+          reject(err);
+        }
+      }
+    );
+  });
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      uploadTask.cancel();
+      reject(new Error('업로드 시간이 초과되었습니다. Storage 설정과 네트워크를 확인해 주세요.'));
+    }, UPLOAD_TIMEOUT_MS);
+  });
+
+  return Promise.race([
+    uploadPromise.finally(() => clearTimeout(timeoutId)),
+    timeoutPromise,
+  ]);
 }
 
 /**

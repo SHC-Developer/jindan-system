@@ -2,6 +2,7 @@ import {
   signInWithPopup,
   GoogleAuthProvider,
   signOut as firebaseSignOut,
+  updateProfile,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, getDoc, getDocFromServer, onSnapshot } from 'firebase/firestore';
@@ -24,6 +25,7 @@ function dataToAppUser(
     displayName,
     jobTitle,
     role,
+    photoURL: firebaseUser.photoURL ?? null,
   };
 }
 
@@ -81,4 +83,15 @@ export async function signInWithGoogle(): Promise<AppUser> {
 export async function signOut(): Promise<void> {
   const auth = getAuthInstance();
   await firebaseSignOut(auth);
+}
+
+/**
+ * 현재 로그인 사용자의 Auth 프로필 사진 URL을 업데이트한다.
+ * 삭제 시에는 photoURL에 빈 문자열을 넘긴다.
+ */
+export async function updateAuthProfilePhoto(photoURL: string | null): Promise<void> {
+  const auth = getAuthInstance();
+  const user = auth.currentUser;
+  if (!user) return;
+  await updateProfile(user, { photoURL: photoURL ?? '' });
 }
