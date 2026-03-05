@@ -29,9 +29,19 @@ export async function createWorkLog(
 export async function updateWorkLogToClockIn(
   logId: string,
   clockInAtMs: number,
-  tardinessReason?: string | null
+  tardinessReason?: string | null,
+  /** 호출자 userId: 문서가 본인 것인지 검증 후에만 수정 */
+  expectedUserId?: string
 ): Promise<void> {
   const ref = getWorkLogRef(logId);
+  if (expectedUserId != null) {
+    const doc = await getDoc(ref);
+    if (!doc.exists()) throw new Error('해당 출퇴근 기록을 찾을 수 없습니다.');
+    const data = doc.data();
+    if (data?.userId !== expectedUserId) {
+      throw new Error('본인의 출퇴근 기록만 수정할 수 있습니다.');
+    }
+  }
   await updateDoc(ref, {
     clockInAt: clockInAtMs,
     status: 'approved',

@@ -57,7 +57,10 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const [overtimeLoading, setOvertimeLoading] = useState<string | null>(null);
 
   const { addToast } = useToastContext();
-  const { todayLog, loading: todayLoading, error: todayError } = useTodayWorkLog(currentUser.uid, now);
+  const { todayLog: rawTodayLog, loading: todayLoading, error: todayError } = useTodayWorkLog(currentUser.uid, now);
+  /** 본인 로그만 사용 (다른 사용자 문서가 섞여 표시되는 경우 방지) */
+  const todayLog =
+    rawTodayLog != null && rawTodayLog.userId === currentUser.uid ? rawTodayLog : null;
   const { workLogs, loading: listLoading, error: listError } = useMyWorkLogs(currentUser.uid);
   const { leaveDateKeys, approvedDateKeys, loading: leaveLoading } = useLeaveDays(currentUser.uid);
 
@@ -112,7 +115,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       });
     };
     if (todayLog?.status === 'absent') {
-      updateWorkLogToClockIn(todayLog.id, Date.now(), null)
+      updateWorkLogToClockIn(todayLog.id, Date.now(), null, currentUser.uid)
         .then(onSuccess)
         .catch(console.error)
         .finally(() => setClockInLoading(false));
@@ -138,7 +141,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       });
     };
     if (todayLog?.status === 'absent') {
-      updateWorkLogToClockIn(todayLog.id, Date.now(), reason)
+      updateWorkLogToClockIn(todayLog.id, Date.now(), reason, currentUser.uid)
         .then(onSuccess)
         .catch(console.error)
         .finally(() => setClockInLoading(false));
