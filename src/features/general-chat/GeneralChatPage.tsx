@@ -9,11 +9,14 @@ import {
   Pin,
   PinOff,
   X,
+  ArrowDown,
+  Menu,
 } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { useChatSearch } from '../../hooks/useChatSearch';
 import { usePinnedNotices } from '../../hooks/usePinnedNotices';
 import { useSenderPhotoMap } from '../../hooks/useSenderPhotoMap';
+import { useAutoScroll } from '../../hooks/useAutoScroll';
 import { formatChatDateLabel, formatChatTime } from '../../lib/chat-format';
 import { highlightText } from '../../lib/search-utils';
 import { formatFileSize } from '../../lib/storage';
@@ -47,6 +50,8 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
     loading,
     error,
     clearError,
+    hasMore,
+    loadMore,
   } = useChat({
     projectId: GENERAL_CHAT_PROJECT_ID,
     subMenuId: GENERAL_CHAT_SUBMENU_ID,
@@ -93,7 +98,7 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
   const [expandedProfileUrl, setExpandedProfileUrl] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; msg: ChatMessage } | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { containerRef: chatContainerRef, endRef: messagesEndRef, hasNewBelow, scrollToBottom } = useAutoScroll(messages.length);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
@@ -120,18 +125,16 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
   );
 
   const groupedByDate = React.useMemo(() => {
+    const pinnedSet = new Set(pinnedMessageIds);
     const map = new Map<string, ChatMessage[]>();
     for (const msg of messages) {
+      if (pinnedSet.has(msg.id)) continue;
       const key = formatChatDateLabel(msg.createdAt);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(msg);
     }
     return Array.from(map.entries());
-  }, [messages]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, pinnedMessageIds]);
 
   useEffect(() => {
     const close = () => setContextMenu(null);
@@ -289,6 +292,16 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
 
             <header className="h-14 border-b border-gray-200 flex items-center justify-between px-4 bg-white flex-shrink-0">
               <div className="flex items-center min-w-0">
+                {sidebarProps.onOpenMobile && (
+                  <button
+                    type="button"
+                    onClick={sidebarProps.onOpenMobile}
+                    className="p-1.5 -ml-1 mr-2 rounded-md text-gray-600 hover:bg-gray-100 md:hidden"
+                    aria-label="메뉴 열기"
+                  >
+                    <Menu size={20} />
+                  </button>
+                )}
                 <span className="font-medium text-brand-main text-sm">공지사항/일반채팅</span>
               </div>
               <div className="flex items-center min-w-0 flex-1 justify-end ml-4 hidden md:flex">
@@ -342,12 +355,23 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0">
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-6 min-h-0 relative">
               {error && <div className="text-center text-sm text-red-600 py-2">{error}</div>}
               {loading ? (
                 <div className="flex justify-center py-8 text-gray-500 text-sm">메시지 불러오는 중…</div>
               ) : (
                 <>
+                  {hasMore && (
+                    <div className="flex justify-center pb-2">
+                      <button
+                        type="button"
+                        onClick={loadMore}
+                        className="text-xs text-brand-sub hover:text-brand-main font-medium px-4 py-1.5 rounded-full border border-brand-sub/30 hover:border-brand-main/50 transition-colors"
+                      >
+                        이전 메시지 더 불러오기
+                      </button>
+                    </div>
+                  )}
                   {pinnedMessages.length > 0 && (
                     <div className="mb-6 pb-4 border-b border-gray-200">
                       <div className="flex items-center gap-2 text-xs font-semibold text-brand-main mb-2">
@@ -495,6 +519,16 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
                 </>
               )}
               <div ref={messagesEndRef} />
+              {hasNewBelow && (
+                <button
+                  type="button"
+                  onClick={scrollToBottom}
+                  className="sticky bottom-2 left-1/2 -translate-x-1/2 z-20 bg-brand-main text-white text-xs font-medium px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 hover:bg-brand-main/90 transition-colors"
+                >
+                  <ArrowDown size={14} />
+                  새 메시지
+                </button>
+              )}
             </div>
 
             {expandedImageUrl && (

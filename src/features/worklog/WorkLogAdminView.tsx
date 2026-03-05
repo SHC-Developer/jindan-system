@@ -16,6 +16,7 @@ import {
 } from '../../lib/datetime-seoul';
 import type { AppUser } from '../../types/user';
 import type { WorkLogEntry } from '../../types/worklog';
+import { useErrorToast } from '../../hooks/useErrorToast';
 import { Loader2, Clock, CheckCircle, Database, Filter, Download, RotateCcw, CalendarCheck, Users } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -109,6 +110,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
 
   const { workLogs: allLogs, loading: allLoading, error: allError } = useAllWorkLogs();
   const { users, loading: usersLoading } = useUserList();
+  const { showError } = useErrorToast();
 
   // 관리자 페이지에서도 18:10 자동 퇴근·야근 06:00 자동 종료 보정 (전체 로그 대상, 새로고침 시 적용)
   useEffect(() => {
@@ -205,7 +207,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
         return next;
       });
     } catch (err) {
-      console.error(err);
+      showError('연차 승인 실패', err);
     } finally {
       setLeaveApprovalLoading(null);
     }
@@ -225,7 +227,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
         return next;
       });
     } catch (err) {
-      console.error(err);
+      showError('연차 승인 취소 실패', err);
     } finally {
       setLeaveApprovalLoading(null);
     }
@@ -287,8 +289,14 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
       const key = toDateKeySeoul(log.clockInAt);
       const status = getAttendanceStatus(log, holidayDateKeys);
       const note = status === '지각' ? formatTardinessNote(getTardinessMinutesSeoul(log.clockInAt)) : '';
+      const regularMs =
+        log.clockOutAt != null ? Math.max(0, log.clockOutAt - log.clockInAt) : null;
+      const otMs =
+        log.overtimeStartAt != null && log.overtimeEndAt != null
+          ? log.overtimeEndAt - log.overtimeStartAt
+          : null;
       const totalMs =
-        log.clockOutAt != null ? log.clockOutAt - log.clockInAt : null;
+        regularMs != null ? regularMs + (otMs ?? 0) : null;
       return {
         type: 'worklog',
         userId: log.userId,
@@ -368,7 +376,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     try {
       await Promise.all(toDelete.map((log) => deleteWorkLog(log.id)));
     } catch (err) {
-      console.error(err);
+      showError('기록 삭제 실패', err);
     } finally {
       setResetting(false);
     }

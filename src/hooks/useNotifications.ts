@@ -6,6 +6,11 @@ import type { TaskNotification } from '../types/task';
 /** 리마운트/재구독 후에도 같은 알림을 다시 토스트하지 않도록 모듈 레벨에서 유지 */
 const notifiedIdsGlobal = new Set<string>();
 
+/** 로그아웃 시 호출하여 이전 사용자의 알림 ID를 초기화 */
+export function clearNotifiedIds(): void {
+  notifiedIdsGlobal.clear();
+}
+
 interface UseNotificationsOptions {
   uid: string | null;
   onNew?: (notification: TaskNotification) => void;

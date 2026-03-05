@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTodayWorkLog, useMyWorkLogs } from '../../hooks/useWorkLog';
 import { useLeaveDays } from '../../hooks/useLeaveDays';
 import {
@@ -7,12 +7,15 @@ import {
   clockOutWorkLog,
   startOvertime,
   endOvertime,
+  createOvertimeOnlyWorkLog,
+  updateAbsentToOvertime,
 } from '../../lib/worklog';
 import { addLeaveDay, removeLeaveDay } from '../../lib/leaveDays';
 import { notifyAdmins } from '../../lib/notifications';
 import {
   toDateKeySeoul,
   getDayOfWeekSeoul,
+  getNineAmSeoul,
   getNineTenSeoul,
   getTodaySixSeoul,
   getTodaySixTenSeoul,
@@ -23,6 +26,7 @@ import {
 } from '../../lib/datetime-seoul';
 import { getHolidayDateKeys } from '../../lib/kr-holidays';
 import { useToastContext } from '../../contexts/ToastContext';
+import { useErrorToast } from '../../hooks/useErrorToast';
 import type { AppUser } from '../../types/user';
 import { Loader2, Clock, X } from 'lucide-react';
 
@@ -58,8 +62,13 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const [overtimeModalOpen, setOvertimeModalOpen] = useState(false);
   const [overtimeReason, setOvertimeReason] = useState('');
   const [overtimeTargetLogId, setOvertimeTargetLogId] = useState<string | null>(null);
+  const [isDirectOvertime, setIsDirectOvertime] = useState(false);
+
+  const autoClockOutProcessed = useRef(new Set<string>());
+  const autoOvertimeEndProcessed = useRef(new Set<string>());
 
   const { addToast } = useToastContext();
+  const { showError } = useErrorToast();
   const { todayLog: rawTodayLog, loading: todayLoading, error: todayError } = useTodayWorkLog(currentUser.uid, now);
   /** 본인 로그만 사용 (다른 사용자 문서가 섞여 표시되는 경우 방지) */
   const todayLog =
@@ -101,6 +110,10 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const isLeaveToday = leaveDateKeys.has(todayKey);
   const isHolidayToday = holidayDateKeys.has(todayKey);
   const isTardyNow = isWeekday && !isHolidayToday && now > getNineTenSeoul(now);
+  const nineAm = getNineAmSeoul(now);
+  const sixPm = getTodaySixSeoul(now);
+  const isBetweenNineAndSix = now >= nineAm && now < sixPm;
+  const isAfterSixPm = now >= sixPm;
 
   const handleClockInClick = useCallback(() => {
     if ((todayLog && todayLog.status !== 'absent') || clockInLoading) return;
@@ -120,15 +133,15 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     if (todayLog?.status === 'absent') {
       updateWorkLogToClockIn(todayLog.id, Date.now(), null, currentUser.uid)
         .then(onSuccess)
-        .catch(console.error)
+        .catch((e) => showError('출근 처리 실패', e))
         .finally(() => setClockInLoading(false));
     } else {
       createWorkLog(currentUser.uid, currentUser.displayName, null)
         .then(onSuccess)
-        .catch(console.error)
+        .catch((e) => showError('출근 처리 실패', e))
         .finally(() => setClockInLoading(false));
     }
-  }, [todayLog, clockInLoading, isTardyNow, currentUser.uid, currentUser.displayName, addToast]);
+  }, [todayLog, clockInLoading, isTardyNow, currentUser.uid, currentUser.displayName, addToast, showError]);
 
   const handleTardinessSubmit = useCallback(() => {
     const reason = tardinessReason.trim();
@@ -146,15 +159,15 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     if (todayLog?.status === 'absent') {
       updateWorkLogToClockIn(todayLog.id, Date.now(), reason, currentUser.uid)
         .then(onSuccess)
-        .catch(console.error)
+        .catch((e) => showError('출근 처리 실패', e))
         .finally(() => setClockInLoading(false));
     } else {
       createWorkLog(currentUser.uid, currentUser.displayName, reason)
         .then(onSuccess)
-        .catch(console.error)
+        .catch((e) => showError('출근 처리 실패', e))
         .finally(() => setClockInLoading(false));
     }
-  }, [tardinessReason, clockInLoading, todayLog, currentUser.uid, currentUser.displayName, addToast]);
+  }, [tardinessReason, clockInLoading, todayLog, currentUser.uid, currentUser.displayName, addToast, showError]);
 
   const handleClockOut = useCallback(
     async (logId: string) => {
@@ -163,50 +176,66 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       try {
         await clockOutWorkLog(logId);
       } catch (err) {
-        console.error(err);
+        showError('퇴근 처리 실패', err);
       } finally {
         setClockOutLoading(null);
       }
     },
-    [clockOutLoading]
+    [clockOutLoading, showError]
   );
 
   const statusText = todayLog && todayLog.status !== 'absent' ? '정상 근무' : null;
 
   const showClockInButton =
-    !isLeaveToday && (!todayLog || todayLog.status === 'absent') && !clockInLoading;
+    !isLeaveToday && (!todayLog || todayLog.status === 'absent') && !clockInLoading && isBetweenNineAndSix;
+  const showDirectOvertimeButton =
+    !isLeaveToday &&
+    isAfterSixPm &&
+    (!todayLog || todayLog.status === 'absent') &&
+    !overtimeLoading;
   const canClockOut =
     todayLog != null &&
     todayLog.status !== 'absent' &&
     todayLog.clockOutAt == null;
 
-  const todayWorkMs =
-    todayLog?.status === 'absent'
+  const regularMs =
+    todayLog?.status === 'absent' || todayLog == null
       ? 0
-      : todayLog?.clockInAt != null && todayLog.clockOutAt != null
-        ? todayLog.clockOutAt - todayLog.clockInAt
-        : todayLog?.clockInAt != null
-          ? now - todayLog.clockInAt
+      : todayLog.clockInAt != null && todayLog.clockOutAt != null
+        ? Math.max(0, todayLog.clockOutAt - todayLog.clockInAt)
+        : todayLog.clockInAt != null
+          ? Math.max(0, now - todayLog.clockInAt)
           : 0;
+  const overtimeMs =
+    todayLog?.overtimeStartAt != null
+      ? todayLog.overtimeEndAt != null
+        ? todayLog.overtimeEndAt - todayLog.overtimeStartAt
+        : now - todayLog.overtimeStartAt
+      : 0;
+  const todayWorkMs = regularMs + overtimeMs;
 
-  // 실시간: 오늘 로그(출근 처리된 것만)에 대해 18:10 지나면 자동 퇴근
+  // 실시간: 오늘 로그(출근 처리된 것만)에 대해 18:10 지나면 자동 퇴근 (18:10 이후 출근 건은 제외)
   useEffect(() => {
     if (!todayLog || todayLog.status !== 'approved' || todayLog.clockOutAt != null) return;
     const sixTen = getTodaySixTenSeoul(now);
+    if (todayLog.clockInAt >= sixTen) return;
     if (now >= sixTen) {
       clockOutWorkLog(todayLog.id, sixTen).catch(console.error);
     }
-  }, [todayLog?.id, todayLog?.status, todayLog?.clockOutAt, now]);
+  }, [todayLog?.id, todayLog?.status, todayLog?.clockOutAt, todayLog?.clockInAt, now]);
 
-  // 보정: 퇴근 미처리 건 중 출근일 기준 18:10이 이미 지난 건 모두 18:10으로 자동 퇴근 (페이지 나중에 열어도 적용)
+  // 보정: 퇴근 미처리 건 중 출근일 기준 18:10이 이미 지난 건 모두 18:10으로 자동 퇴근 (18:10 이후 출근 건은 제외)
   useEffect(() => {
     const toFix = workLogs.filter(
       (log) =>
         log.clockOutAt == null &&
         log.status === 'approved' &&
-        now >= getTodaySixTenSeoul(log.clockInAt)
+        log.clockInAt < getTodaySixTenSeoul(log.clockInAt) &&
+        now >= getTodaySixTenSeoul(log.clockInAt) &&
+        !autoClockOutProcessed.current.has(log.id)
     );
     toFix.forEach((log) => {
+      autoClockOutProcessed.current.add(log.id);
       clockOutWorkLog(log.id, getTodaySixTenSeoul(log.clockInAt)).catch(console.error);
     });
   }, [workLogs, now]);
@@ -234,18 +263,47 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
         log.clockOutAt != null &&
         log.overtimeStartAt != null &&
         log.overtimeEndAt == null &&
-        now >= getTodayElevenPmSeoul(log.clockInAt)
+        now >= getTodayElevenPmSeoul(log.clockInAt) &&
+        !autoOvertimeEndProcessed.current.has(log.id)
     );
     toFix.forEach((log) => {
+      autoOvertimeEndProcessed.current.add(log.id);
       endOvertime(log.id, getTodayElevenPmSeoul(log.clockInAt)).catch(console.error);
     });
   }, [workLogs, now]);
 
   const handleOvertimeSubmit = useCallback(async () => {
-    if (!overtimeTargetLogId || !overtimeReason.trim() || overtimeLoading) return;
+    const reason = overtimeReason.trim();
+    if (!reason || overtimeLoading) return;
+
+    if (isDirectOvertime) {
+      setOvertimeLoading('direct');
+      try {
+        if (todayLog?.status === 'absent') {
+          await updateAbsentToOvertime(todayLog.id, reason, currentUser.uid);
+        } else {
+          await createOvertimeOnlyWorkLog(currentUser.uid, currentUser.displayName, reason);
+        }
+        setOvertimeModalOpen(false);
+        setOvertimeReason('');
+        setOvertimeTargetLogId(null);
+        setIsDirectOvertime(false);
+        addToast({
+          title: '야근 시작',
+          message: '야근이 시작되었습니다. 야근 종료 시 버튼을 눌러 주세요.',
+        });
+      } catch (err) {
+        showError('야근 시작 실패', err);
+      } finally {
+        setOvertimeLoading(null);
+      }
+      return;
+    }
+
+    if (!overtimeTargetLogId) return;
     setOvertimeLoading(overtimeTargetLogId);
     try {
-      await startOvertime(overtimeTargetLogId, overtimeReason.trim());
+      await startOvertime(overtimeTargetLogId, reason);
       setOvertimeModalOpen(false);
       setOvertimeReason('');
       setOvertimeTargetLogId(null);
@@ -254,15 +312,23 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
         message: '야근이 시작되었습니다. 야근 종료 시 버튼을 눌러 주세요.',
       });
     } catch (err) {
-      console.error(err);
+      showError('야근 시작 실패', err);
     } finally {
       setOvertimeLoading(null);
     }
-  }, [overtimeTargetLogId, overtimeReason, overtimeLoading, addToast]);
+  }, [overtimeTargetLogId, overtimeReason, overtimeLoading, isDirectOvertime, todayLog, currentUser.uid, currentUser.displayName, addToast, showError]);
 
   const handleOpenOvertimeModal = useCallback((logId: string) => {
     setOvertimeTargetLogId(logId);
     setOvertimeReason('');
+    setIsDirectOvertime(false);
+    setOvertimeModalOpen(true);
+  }, []);
+
+  const handleOpenDirectOvertimeModal = useCallback(() => {
+    setOvertimeTargetLogId(null);
+    setOvertimeReason('');
+    setIsDirectOvertime(true);
     setOvertimeModalOpen(true);
   }, []);
 
@@ -273,12 +339,12 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       try {
         await endOvertime(logId);
       } catch (err) {
-        console.error(err);
+        showError('야근 종료 실패', err);
       } finally {
         setOvertimeLoading(null);
       }
     },
-    [overtimeLoading]
+    [overtimeLoading, showError]
   );
 
   const weekTotalMs = workLogs
@@ -289,7 +355,14 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
         log.clockInAt >= weekStart &&
         log.clockInAt <= weekEnd
     )
-    .reduce((sum, log) => sum + (log.clockOutAt! - log.clockInAt), 0);
+    .reduce((sum, log) => {
+      const reg = Math.max(0, log.clockOutAt! - log.clockInAt);
+      const ot =
+        log.overtimeStartAt != null && log.overtimeEndAt != null
+          ? log.overtimeEndAt - log.overtimeStartAt
+          : 0;
+      return sum + reg + ot;
+    }, 0);
   const weekTargetMs = 40 * 60 * 60 * 1000;
   const tardyCount = weekHolidayLoaded
     ? workLogs.filter(
@@ -334,18 +407,23 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     if (pendingLeaveKeys.size === 0 || leaveRequestSending) return;
     setLeaveRequestSending(true);
     try {
+      const dateKeys = [...pendingLeaveKeys].sort();
+      const dateLabel = dateKeys.length <= 3
+        ? dateKeys.map((k) => k.slice(5).replace('-', '/')).join(', ')
+        : `${dateKeys[0].slice(5).replace('-', '/')} 외 ${dateKeys.length - 1}건`;
       await notifyAdmins({
         type: 'leave_approval_request',
-        title: '연차 승인 요청',
+        title: `연차 승인 요청 (${dateLabel})`,
         leaveUserDisplayName: currentUser.displayName ?? undefined,
+        leaveDateKey: dateKeys.join(','),
       });
       setLastRequestedPendingKeys(new Set(pendingLeaveKeys));
     } catch (err) {
-      console.error(err);
+      showError('연차 신청 실패', err);
     } finally {
       setLeaveRequestSending(false);
     }
-  }, [pendingLeaveKeys, leaveRequestSending, currentUser.displayName]);
+  }, [pendingLeaveKeys, leaveRequestSending, currentUser.displayName, showError]);
 
   if (loading) {
     return (
@@ -441,6 +519,17 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                   )}
                 </button>
               )}
+              {showDirectOvertimeButton && (
+                <button
+                  type="button"
+                  onClick={handleOpenDirectOvertimeModal}
+                  disabled={!!overtimeLoading}
+                  className="w-full py-3 px-4 rounded-lg border border-brand-main text-brand-main font-medium hover:bg-brand-main/10 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {overtimeLoading === 'direct' ? <Loader2 size={18} className="animate-spin" /> : <Clock size={18} />}
+                  야근 시작
+                </button>
+              )}
               {isLeaveToday && !todayLog && (
                 <p className="text-sm text-brand-sub">오늘은 연차로 등록된 날입니다.</p>
               )}
@@ -495,6 +584,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
             </div>
             <p className="text-xs text-gray-500 mt-2">
               {showClockInButton && '출근 버튼을 눌러 업무를 시작하세요.'}
+              {showDirectOvertimeButton && '18시 이후입니다. 야근 시작 버튼을 눌러 업무를 시작하세요.'}
               {canClockOut && '퇴근 버튼을 눌러 업무를 마무리하세요.'}
             </p>
           </div>
@@ -515,9 +605,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
             {todayLog && todayLog.status !== 'absent' && (
               <>
                 <p className="text-lg font-mono text-brand-dark">
-                  {todayLog.clockOutAt
-                    ? formatDurationMs(todayLog.clockOutAt - todayLog.clockInAt)
-                    : formatDurationMs(now - todayLog.clockInAt)}
+                  {formatDurationMs(todayWorkMs)}
                 </p>
                 {!todayLog.clockOutAt && (
                   <p className="text-xs text-brand-sub mt-1 flex items-center gap-1">
@@ -525,7 +613,18 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                     근무 중
                   </p>
                 )}
-                {todayLog.clockOutAt && <p className="text-xs text-gray-500 mt-1">퇴근 완료</p>}
+                {todayLog.clockOutAt && todayLog.overtimeStartAt != null && todayLog.overtimeEndAt == null && (
+                  <p className="text-xs text-brand-sub mt-1 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-sub" />
+                    야근 중
+                  </p>
+                )}
+                {todayLog.clockOutAt && todayLog.overtimeEndAt != null && (
+                  <p className="text-xs text-gray-500 mt-1">야근 종료</p>
+                )}
+                {todayLog.clockOutAt && todayLog.overtimeStartAt == null && (
+                  <p className="text-xs text-gray-500 mt-1">퇴근 완료</p>
+                )}
               </>
             )}
           </div>
@@ -720,6 +819,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                   setOvertimeModalOpen(false);
                   setOvertimeReason('');
                   setOvertimeTargetLogId(null);
+                  setIsDirectOvertime(false);
                 }}
                 className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-1"
               >
@@ -731,7 +831,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                 disabled={!overtimeReason.trim() || !!overtimeLoading}
                 className="flex-1 py-2 px-4 rounded-lg bg-brand-main text-white font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1"
               >
-                {overtimeTargetLogId && overtimeLoading === overtimeTargetLogId ? (
+                {overtimeLoading ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : (
                   <Clock size={16} />

@@ -56,6 +56,8 @@ export function Sidebar({
   onProfilePhotoDelete,
   specialistViewMode,
   onToggleSpecialistViewMode,
+  isMobileOpen,
+  onCloseMobile,
 }: SidebarProps) {
   const [localExpanded, setLocalExpanded] = useState(true);
   const [profileUploading, setProfileUploading] = useState(false);
@@ -138,8 +140,24 @@ export function Sidebar({
     }
   }, [newProjectName, onCreateProject]);
 
+  const closeMobile = onCloseMobile ?? (() => {});
+
   return (
-    <div className="w-64 bg-brand-dark text-gray-300 flex flex-col h-full flex-shrink-0">
+    <>
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={closeMobile}
+          aria-hidden="true"
+        />
+      )}
+    <div className={`
+      w-64 bg-brand-dark text-gray-300 flex flex-col h-full flex-shrink-0
+      fixed inset-y-0 left-0 z-50
+      transform transition-transform duration-200 ease-in-out
+      ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
+      md:relative md:translate-x-0 md:z-auto
+    `}>
       {/* Logo Area - 클릭 시 공지사항/일반채팅(메인 홈)으로 이동 */}
       <button
         type="button"
@@ -163,6 +181,7 @@ export function Sidebar({
           <button
             onClick={() => {
               onNavigateToGeneralChat ? onNavigateToGeneralChat() : setActiveSection('general-chat');
+              closeMobile();
             }}
             className={`w-full text-left px-2 py-1.5 rounded-md flex items-center text-sm transition-colors ${
               activeSection === 'general-chat'
@@ -176,6 +195,7 @@ export function Sidebar({
           <button
             onClick={() => {
               onNavigateToCad ? onNavigateToCad() : setActiveSection('cad');
+              closeMobile();
             }}
             className={`w-full text-left px-2 py-1.5 rounded-md flex items-center text-sm transition-colors ${
               activeSection === 'cad'
@@ -253,7 +273,7 @@ export function Sidebar({
                       ) : (
                         <button
                           type="button"
-                          onClick={() => onNavigateToProject(project)}
+                          onClick={() => { onNavigateToProject(project); closeMobile(); }}
                           className="w-full text-left flex items-center min-w-0"
                         >
                           <Hash size={16} className="mr-2 opacity-70 flex-shrink-0" />
@@ -376,7 +396,7 @@ export function Sidebar({
           )}
           {onNavigateToDailyJournal && (
             <button
-              onClick={onNavigateToDailyJournal}
+              onClick={() => { onNavigateToDailyJournal(); closeMobile(); }}
               className={`w-full text-left px-2 py-1.5 rounded-md flex items-center text-sm transition-colors ${
                 activeSection === 'daily-journal'
                   ? 'bg-brand-main text-white shadow-sm'
@@ -392,7 +412,7 @@ export function Sidebar({
             </button>
           )}
           <button
-            onClick={onNavigateToWorkAssign}
+            onClick={() => { onNavigateToWorkAssign(); closeMobile(); }}
             className={`w-full text-left px-2 py-1.5 rounded-md flex items-center text-sm transition-colors ${
               activeSection === 'work-assign'
                 ? 'bg-brand-main text-white shadow-sm'
@@ -407,7 +427,7 @@ export function Sidebar({
             </span>
           </button>
           <button
-            onClick={onNavigateToWorkLog}
+            onClick={() => { onNavigateToWorkLog(); closeMobile(); }}
             className={`w-full text-left px-2 py-1.5 rounded-md flex items-center text-sm transition-colors ${
               activeSection === 'worklog'
                 ? 'bg-brand-main text-white shadow-sm'
@@ -419,7 +439,7 @@ export function Sidebar({
           </button>
           {canAccessAdmin(user) && (
             <button
-              onClick={onNavigateToAdmin}
+              onClick={() => { onNavigateToAdmin(); closeMobile(); }}
               className={`w-full text-left px-2 py-1.5 rounded-md flex items-center text-sm transition-colors ${
                 activeSection === 'admin-page'
                   ? 'bg-brand-main text-white shadow-sm'
@@ -526,5 +546,6 @@ export function Sidebar({
         </div>
       </div>
     </div>
+    </>
   );
 }

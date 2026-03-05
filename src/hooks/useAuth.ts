@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { getAuthInstance, isFirebaseConfigured } from '../lib/firebase';
 import { fetchAppUser, subscribeAppUser, signInWithGoogle as authSignInWithGoogle, signOut as authSignOut, updateAuthProfilePhoto, updateUserPhotoURLInFirestore } from '../lib/auth';
+import { clearNotifiedIds } from './useNotifications';
 import { deleteProfilePhoto } from '../lib/storage';
 import type { AppUser } from '../types/user';
 
@@ -86,6 +87,7 @@ export function useAuth(): UseAuthResult {
     setError(null);
     try {
       await authSignOut();
+      clearNotifiedIds();
       setUser(null);
     } catch (e) {
       const message = e instanceof Error ? e.message : '로그아웃에 실패했습니다.';

@@ -49,6 +49,7 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
   );
 
   useEffect(() => {
+    if (docLoading) return;
     if (journal) {
       setGoals(journal.goals.length > 0 ? journal.goals : createEmptyGoals(DEFAULT_GOAL_COUNT));
       setDetailContent(journal.detailContent);
@@ -60,7 +61,7 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
       setTomorrowPlan('');
       setMemo('');
     }
-  }, [journal, editingDateKey]);
+  }, [journal, editingDateKey, docLoading]);
 
   const addGoal = useCallback(() => {
     setGoals((prev) => [...prev, { text: '', checked: false }]);
@@ -161,6 +162,17 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
               ))}
             </div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (docLoading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-brand-light">
+        <div className="flex flex-col items-center gap-2 text-gray-500">
+          <Loader2 size={28} className="animate-spin text-brand-main" />
+          <span className="text-sm">업무일지 불러오는 중…</span>
         </div>
       </div>
     );

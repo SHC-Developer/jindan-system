@@ -1,27 +1,38 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { Loader2, Menu } from 'lucide-react';
 import { useAuth } from './hooks/useAuth';
 import { useProjects } from './hooks/useProjects';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { NotificationToastContainer } from './components/NotificationToast';
+import { GlobalToastContainer } from './components/GlobalToast';
 import { Sidebar } from './components/layout/Sidebar';
 import { RightPanel } from './components/layout/RightPanel';
-import { AdminPage } from './features/admin/AdminPage';
-import { WorkAssignAdminView } from './features/work-assign/WorkAssignAdminView';
-import { WorkAssignMyListView } from './features/work-assign/WorkAssignMyListView';
-import { TaskDetailPage } from './features/work-assign/TaskDetailPage';
-import { WorkLogDashboardView } from './features/worklog/WorkLogDashboardView';
-import { WorkLogAdminView } from './features/worklog/WorkLogAdminView';
-import { DailyJournalWriteView } from './features/daily-journal/DailyJournalWriteView';
-import { DailyJournalAdminView } from './features/daily-journal/DailyJournalAdminView';
-import { ProjectChatContent } from './features/project-chat/ProjectChatContent';
-import { GeneralChatPage } from './features/general-chat/GeneralChatPage';
-import { CadChatPage } from './features/cad-chat/CadChatPage';
 import { canAccessAdmin } from './lib/auth';
 import type { AppUser } from './types/user';
 import type { Project } from './types/project';
-import type { ActiveSection, MiddleMenuId, SpecialistViewMode } from './types/layout';
+import type { ActiveSection, MiddleMenuId, SpecialistViewMode, SidebarProps } from './types/layout';
 import { MIDDLE_MENUS } from './constants/navigation';
+
+const AdminPage = React.lazy(() => import('./features/admin/AdminPage').then(m => ({ default: m.AdminPage })));
+const WorkAssignAdminView = React.lazy(() => import('./features/work-assign/WorkAssignAdminView').then(m => ({ default: m.WorkAssignAdminView })));
+const WorkAssignMyListView = React.lazy(() => import('./features/work-assign/WorkAssignMyListView').then(m => ({ default: m.WorkAssignMyListView })));
+const TaskDetailPage = React.lazy(() => import('./features/work-assign/TaskDetailPage').then(m => ({ default: m.TaskDetailPage })));
+const WorkLogDashboardView = React.lazy(() => import('./features/worklog/WorkLogDashboardView').then(m => ({ default: m.WorkLogDashboardView })));
+const WorkLogAdminView = React.lazy(() => import('./features/worklog/WorkLogAdminView').then(m => ({ default: m.WorkLogAdminView })));
+const DailyJournalWriteView = React.lazy(() => import('./features/daily-journal/DailyJournalWriteView').then(m => ({ default: m.DailyJournalWriteView })));
+const DailyJournalAdminView = React.lazy(() => import('./features/daily-journal/DailyJournalAdminView').then(m => ({ default: m.DailyJournalAdminView })));
+const ProjectChatContent = React.lazy(() => import('./features/project-chat/ProjectChatContent').then(m => ({ default: m.ProjectChatContent })));
+const GeneralChatPage = React.lazy(() => import('./features/general-chat/GeneralChatPage').then(m => ({ default: m.GeneralChatPage })));
+const CadChatPage = React.lazy(() => import('./features/cad-chat/CadChatPage').then(m => ({ default: m.CadChatPage })));
+
+function PageFallback() {
+  return (
+    <div className="flex items-center justify-center h-full w-full">
+      <Loader2 size={28} className="animate-spin text-brand-main" />
+    </div>
+  );
+}
 
 function buildSidebarProps(
   user: AppUser,
@@ -45,7 +56,7 @@ function buildSidebarProps(
   onProfilePhotoDelete: () => Promise<void>,
   specialistViewMode?: SpecialistViewMode,
   onToggleSpecialistViewMode?: () => void
-) {
+): SidebarProps {
   return {
   projects,
   projectsLoading,
@@ -117,6 +128,7 @@ export default function App() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedMenuId, setSelectedMenuId] = useState<MiddleMenuId>('field-survey');
   const [activeTab, setActiveTab] = useState<'chat' | 'automation'>('chat');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<ActiveSection>('general-chat');
   const [isProjectsExpanded, setIsProjectsExpanded] = useState(true);
   const [specialistViewMode, setSpecialistViewMode] = useState<SpecialistViewMode>('admin');
@@ -151,7 +163,11 @@ export default function App() {
       return;
     }
     if (path === '/admin') {
-      setActiveSection('admin-page');
+      if (user && canAccessAdmin(user)) {
+        setActiveSection('admin-page');
+      } else {
+        navigate('/general-chat', { replace: true });
+      }
       return;
     }
     const projectMatch = path.match(/^\/project\/(.+)$/);
@@ -218,6 +234,9 @@ export default function App() {
     user.isSpecialist ? specialistViewMode : undefined,
     user.isSpecialist ? () => setSpecialistViewMode((m) => (m === 'admin' ? 'general' : 'admin')) : undefined
   );
+  sidebarProps.isMobileOpen = isMobileSidebarOpen;
+  sidebarProps.onCloseMobile = () => setIsMobileSidebarOpen(false);
+  sidebarProps.onOpenMobile = () => setIsMobileSidebarOpen(true);
 
   const showAdminView = user.isSpecialist
     ? specialistViewMode === 'admin'
@@ -244,7 +263,7 @@ export default function App() {
       <DailyJournalWriteView currentUser={user} />
     )
   ) : activeSection === 'admin-page' ? (
-    <AdminPage />
+    canAccessAdmin(user) ? <AdminPage /> : null
   ) : activeSection === 'general-chat' || activeSection === 'cad' ? null : activeSection === 'project' && selectedProject ? (
     <>
       <ProjectChatContent
@@ -271,7 +290,10 @@ export default function App() {
         }}
       >
         <NotificationToastContainer />
-        <GeneralChatPage user={user} sidebarProps={sidebarProps} onLogout={handleLogout} />
+        <GlobalToastContainer />
+        <Suspense fallback={<PageFallback />}>
+          <GeneralChatPage user={user} sidebarProps={sidebarProps} onLogout={handleLogout} />
+        </Suspense>
       </NotificationProvider>
     );
   }
@@ -285,7 +307,10 @@ export default function App() {
         }}
       >
         <NotificationToastContainer />
-        <CadChatPage user={user} sidebarProps={sidebarProps} onLogout={handleLogout} />
+        <GlobalToastContainer />
+        <Suspense fallback={<PageFallback />}>
+          <CadChatPage user={user} sidebarProps={sidebarProps} onLogout={handleLogout} />
+        </Suspense>
       </NotificationProvider>
     );
   }
@@ -299,13 +324,29 @@ export default function App() {
     >
     <div className="flex h-screen w-full overflow-hidden font-sans bg-brand-light">
       <NotificationToastContainer />
+      <GlobalToastContainer />
         <Sidebar {...sidebarProps} />
-      <div className="flex flex-1 min-w-0 overflow-hidden w-full">
-        {isTaskDetailPage || activeSection === 'work-assign' || activeSection === 'worklog' || activeSection === 'daily-journal' || activeSection === 'admin-page' ? (
-          <div className="w-full h-full min-h-0 min-w-0 overflow-hidden">{mainContent}</div>
-        ) : (
-          mainContent
-        )}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden w-full">
+        <div className="h-12 flex items-center px-3 border-b border-gray-200 bg-white flex-shrink-0 md:hidden">
+          <button
+            type="button"
+            onClick={() => setIsMobileSidebarOpen(true)}
+            className="p-1.5 -ml-1 rounded-md text-gray-600 hover:bg-gray-100"
+            aria-label="메뉴 열기"
+          >
+            <Menu size={22} />
+          </button>
+          <span className="ml-2 text-sm font-semibold text-brand-dark truncate">KDVO 안전진단팀</span>
+        </div>
+        <div className="flex flex-1 min-w-0 overflow-hidden w-full">
+          <Suspense fallback={<PageFallback />}>
+            {isTaskDetailPage || activeSection === 'work-assign' || activeSection === 'worklog' || activeSection === 'daily-journal' || activeSection === 'admin-page' ? (
+              <div className="w-full h-full min-h-0 min-w-0 overflow-hidden">{mainContent}</div>
+            ) : (
+              mainContent
+            )}
+          </Suspense>
+        </div>
       </div>
     </div>
     </NotificationProvider>

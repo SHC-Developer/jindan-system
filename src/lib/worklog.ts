@@ -1,8 +1,9 @@
-import { addDoc, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
+import { addDoc, updateDoc, getDoc, deleteDoc, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
 import { getWorkLogsRef, getWorkLogRef } from './firestore-paths';
+import { toDateKeySeoul } from './datetime-seoul';
 import type { WorkLogStatus } from '../types/worklog';
 
-/** 출근하기: 승인 없이 status 'approved'로 즉시 기록 생성. */
+/** 출근하기: 승인 없이 status 'approved'로 즉시 기록 생성. 당일 중복 출근 방지. */
 export async function createWorkLog(
   userId: string,
   userDisplayName: string | null,
@@ -10,6 +11,20 @@ export async function createWorkLog(
 ): Promise<string> {
   const ref = getWorkLogsRef();
   const now = Date.now();
+  const todayKey = toDateKeySeoul(now);
+  const todayStart = new Date(todayKey + 'T00:00:00+09:00').getTime();
+  const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+
+  const existing = await getDocs(
+    query(ref, where('userId', '==', userId), where('clockInAt', '>=', todayStart), where('clockInAt', '<', todayEnd), limit(1))
+  );
+  if (!existing.empty) {
+    const existingStatus = existing.docs[0].data().status;
+    if (existingStatus !== 'absent') {
+      throw new Error('오늘은 이미 출근 기록이 있습니다.');
+    }
+  }
+
   const docRef = await addDoc(ref, {
     userId,
     userDisplayName: userDisplayName ?? null,
@@ -109,6 +124,58 @@ export async function createAbsentWorkLog(
     overtimeReason: null,
   });
   return docRef.id;
+}
+
+/** 18:00 이후 미출근자 야근 전용: clockIn=clockOut=now(정규 근무 0), overtimeStartAt=now. */
+export async function createOvertimeOnlyWorkLog(
+  userId: string,
+  userDisplayName: string | null,
+  overtimeReason: string
+): Promise<string> {
+  const ref = getWorkLogsRef();
+  const now = Date.now();
+  const docRef = await addDoc(ref, {
+    userId,
+    userDisplayName: userDisplayName ?? null,
+    clockInAt: now,
+    clockOutAt: now,
+    status: 'approved',
+    approvedBy: null,
+    approvedAt: null,
+    tardinessReason: null,
+    overtimeStartAt: now,
+    overtimeEndAt: null,
+    overtimeReason: overtimeReason ?? null,
+  });
+  return docRef.id;
+}
+
+/** 결근 레코드를 야근 전용으로 전환: clockIn=clockOut=now, overtimeStartAt=now. */
+export async function updateAbsentToOvertime(
+  logId: string,
+  overtimeReason: string,
+  expectedUserId?: string
+): Promise<void> {
+  const ref = getWorkLogRef(logId);
+  if (expectedUserId != null) {
+    const doc = await getDoc(ref);
+    if (!doc.exists()) throw new Error('해당 출퇴근 기록을 찾을 수 없습니다.');
+    if (doc.data()?.userId !== expectedUserId) {
+      throw new Error('본인의 출퇴근 기록만 수정할 수 있습니다.');
+    }
+  }
+  const now = Date.now();
+  await updateDoc(ref, {
+    clockInAt: now,
+    clockOutAt: now,
+    status: 'approved',
+    approvedBy: null,
+    approvedAt: null,
+    tardinessReason: null,
+    overtimeStartAt: now,
+    overtimeEndAt: null,
+    overtimeReason: overtimeReason ?? null,
+  });
 }
 
 /** 관리자 전용: 출근 기록 삭제(출근 상태 리셋). */

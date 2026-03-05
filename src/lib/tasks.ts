@@ -75,6 +75,13 @@ export async function submitTask(
   submissionNote?: string | null
 ): Promise<void> {
   const taskRef = getTaskRef(taskId);
+  const pre = await getDoc(taskRef);
+  if (pre.exists()) {
+    const s = pre.data().status;
+    if (s !== 'pending' && s !== 'revision') {
+      throw new Error('현재 상태에서는 제출할 수 없습니다.');
+    }
+  }
   await updateDoc(taskRef, {
     status: 'submitted',
     completedAt: Date.now(),
@@ -111,6 +118,9 @@ export async function approveTask(taskId: string): Promise<void> {
   const snap = await getDoc(taskRef);
   if (!snap.exists()) return;
   const data = snap.data();
+  if (data.status !== 'submitted') {
+    throw new Error('제출된 업무만 승인할 수 있습니다.');
+  }
   const attachments = (data.attachments as Task['attachments']) ?? [];
   const approvedUrls = attachments.map((a) => a.downloadUrl).filter(Boolean);
   try {
@@ -133,6 +143,9 @@ export async function requestRevision(
   const snap = await getDoc(taskRef);
   if (!snap.exists()) return;
   const data = snap.data();
+  if (data.status !== 'submitted') {
+    throw new Error('제출된 업무만 재검토 요청할 수 있습니다.');
+  }
   const assigneeId = data.assigneeId as string;
   const taskTitle = (updates.title !== undefined && updates.title.trim() !== '' ? updates.title.trim() : (data.title as string)) ?? '업무';
 
@@ -151,8 +164,13 @@ export async function requestRevision(
   });
 }
 
-/** 업무 삭제 (관리자·지시자만). 삭제 시 일반 사용자 목록에서도 제거됨 */
+/** 업무 삭제 (관리자·지시자만). Storage 파일 정리 후 Firestore 문서 삭제 */
 export async function deleteTask(taskId: string): Promise<void> {
+  try {
+    await deleteTaskStorageFilesExcept(taskId, []);
+  } catch {
+    // Storage 정리 실패해도 문서 삭제는 진행
+  }
   const taskRef = getTaskRef(taskId);
   await deleteDoc(taskRef);
 }

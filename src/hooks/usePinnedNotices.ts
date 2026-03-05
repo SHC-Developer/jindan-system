@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { onSnapshot, updateDoc, setDoc } from 'firebase/firestore';
+import { onSnapshot, updateDoc, setDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { getPinnedRef } from '../lib/firestore-paths';
 
 interface UsePinnedNoticesOptions {
@@ -47,27 +47,25 @@ export function usePinnedNotices({
   const addPinned = useCallback(
     async (messageId: string) => {
       const pinnedRef = getPinnedRef(projectId, subMenuId);
-      const next = pinnedMessageIds.includes(messageId) ? pinnedMessageIds : [...pinnedMessageIds, messageId];
       try {
-        await updateDoc(pinnedRef, { pinnedMessageIds: next });
+        await updateDoc(pinnedRef, { pinnedMessageIds: arrayUnion(messageId) });
       } catch {
         await setDoc(pinnedRef, { pinnedMessageIds: [messageId] }, { merge: true });
       }
     },
-    [projectId, subMenuId, pinnedMessageIds]
+    [projectId, subMenuId]
   );
 
   const removePinned = useCallback(
     async (messageId: string) => {
       const pinnedRef = getPinnedRef(projectId, subMenuId);
-      const next = pinnedMessageIds.filter((id) => id !== messageId);
       try {
-        await updateDoc(pinnedRef, { pinnedMessageIds: next });
+        await updateDoc(pinnedRef, { pinnedMessageIds: arrayRemove(messageId) });
       } catch {
-        await setDoc(pinnedRef, { pinnedMessageIds: next }, { merge: true });
+        // 문서가 없으면 무시
       }
     },
-    [projectId, subMenuId, pinnedMessageIds]
+    [projectId, subMenuId]
   );
 
   return {

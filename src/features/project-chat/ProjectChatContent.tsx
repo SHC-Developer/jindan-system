@@ -8,10 +8,12 @@ import {
   Loader2,
   Trash2,
   X,
+  ArrowDown,
 } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { useChatSearch } from '../../hooks/useChatSearch';
 import { useSenderPhotoMap } from '../../hooks/useSenderPhotoMap';
+import { useAutoScroll } from '../../hooks/useAutoScroll';
 import { formatChatDateLabel, formatChatTime } from '../../lib/chat-format';
 import { highlightText } from '../../lib/search-utils';
 import { formatFileSize } from '../../lib/storage';
@@ -41,7 +43,7 @@ export function ProjectChatContent({
   setActiveTab,
   user,
 }: ProjectChatContentProps) {
-  const { messages, sendMessage, sendFileMessage, deleteMessage, canDeleteMessage, loading, error, clearError } =
+  const { messages, sendMessage, sendFileMessage, deleteMessage, canDeleteMessage, loading, error, clearError, hasMore, loadMore } =
     useChat({
       projectId: selectedProject.id,
       subMenuId: selectedMenuData.id,
@@ -82,7 +84,7 @@ export function ProjectChatContent({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [expandedImageUrl, setExpandedImageUrl] = useState<string | null>(null);
   const [expandedProfileUrl, setExpandedProfileUrl] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { containerRef: chatContainerRef, endRef: messagesEndRef, hasNewBelow, scrollToBottom } = useAutoScroll(messages.length);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const dragCounter = useRef(0);
@@ -111,10 +113,6 @@ export function ProjectChatContent({
       map.get(key)!.push(msg);
     }
     return Array.from(map.entries());
-  }, [messages]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const addFileToPending = useCallback((file: File) => {
@@ -344,7 +342,7 @@ export function ProjectChatContent({
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-6 space-y-6 relative">
               {error && <div className="text-center text-sm text-red-600 py-2">{error}</div>}
               {loading ? (
                 <div className="flex justify-center py-8 text-gray-500 text-sm">메시지 불러오는 중…</div>
@@ -353,7 +351,19 @@ export function ProjectChatContent({
                   아직 메시지가 없습니다. 첫 메시지를 보내보세요.
                 </div>
               ) : (
-                groupedByDate.map(([dateLabel, msgs]) => (
+                <>
+                  {hasMore && (
+                    <div className="flex justify-center pb-2">
+                      <button
+                        type="button"
+                        onClick={loadMore}
+                        className="text-xs text-brand-sub hover:text-brand-main font-medium px-4 py-1.5 rounded-full border border-brand-sub/30 hover:border-brand-main/50 transition-colors"
+                      >
+                        이전 메시지 더 불러오기
+                      </button>
+                    </div>
+                  )}
+                  {groupedByDate.map(([dateLabel, msgs]) => (
                   <div key={dateLabel} className="space-y-4">
                     <div className="flex justify-center my-4">
                       <span className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
@@ -427,9 +437,20 @@ export function ProjectChatContent({
                       );
                     })}
                   </div>
-                ))
+                  ))}
+                </>
               )}
               <div ref={messagesEndRef} />
+              {hasNewBelow && (
+                <button
+                  type="button"
+                  onClick={scrollToBottom}
+                  className="sticky bottom-2 left-1/2 -translate-x-1/2 z-20 bg-brand-main text-white text-xs font-medium px-4 py-1.5 rounded-full shadow-lg flex items-center gap-1.5 hover:bg-brand-main/90 transition-colors"
+                >
+                  <ArrowDown size={14} />
+                  새 메시지
+                </button>
+              )}
             </div>
 
             {expandedImageUrl && (
@@ -564,7 +585,7 @@ export function ProjectChatContent({
         ) : (
           <div className="h-full flex items-center justify-center flex-col p-8 text-center">
             <div className="w-16 h-16 bg-brand-sub/10 rounded-full flex items-center justify-center mb-4 text-brand-sub">
-              <selectedMenuData.icon size={32} />
+              {(() => { const Icon = selectedMenuData.icon; return <Icon size={32} />; })()}
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">{selectedMenuData.name} 자동화 도구</h3>
             <p className="text-gray-500 max-w-md mb-6">

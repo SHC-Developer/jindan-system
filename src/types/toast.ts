@@ -1,5 +1,7 @@
 import type { NotificationType } from './task';
 
+export type ToastVariant = 'info' | 'success' | 'error';
+
 export interface ToastItem {
   id: string;
   title: string;
@@ -9,5 +11,7 @@ export interface ToastItem {
   notificationId?: string;
   /** 출근/연차 알림 시 클릭 시 출퇴근 기록부로 이동 */
   notificationType?: NotificationType;
+  /** 토스트 종류. 기본값 'info' */
+  variant?: ToastVariant;
   createdAt: number;
 }

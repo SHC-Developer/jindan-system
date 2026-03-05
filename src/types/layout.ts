@@ -56,4 +56,10 @@ export interface SidebarProps {
   /** 프로젝트 메뉴 접기/펼치기. 전달 시 사이드바 상태가 화면 이동 시에도 유지됨 */
   isProjectsExpanded?: boolean;
   setProjectsExpanded?: (expanded: boolean) => void;
+  /** 모바일 사이드바 열림 여부 */
+  isMobileOpen?: boolean;
+  /** 모바일 사이드바 닫기 핸들러 */
+  onCloseMobile?: () => void;
+  /** 모바일 사이드바 열기 핸들러 (채팅 페이지 헤더용) */
+  onOpenMobile?: () => void;
 }

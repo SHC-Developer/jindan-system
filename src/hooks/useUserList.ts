@@ -21,19 +21,26 @@ export function useUserList(): {
 
   useEffect(() => {
     const usersRef = getUsersRef();
-    const q = query(usersRef, where('role', '==', 'general'));
+    const generalQuery = query(usersRef, where('role', '==', 'general'));
+    const specialistQuery = query(usersRef, where('specialist', '==', true));
 
-    getDocs(q)
-      .then((snapshot) => {
-        const list: UserListItem[] = snapshot.docs.map((d) => {
-          const data = d.data();
-          return {
-            uid: d.id,
-            displayName: (data.displayName as string) ?? null,
-            jobTitle: (data.jobTitle as string) ?? null,
-            email: (data.email as string) ?? null,
-          };
-        });
+    Promise.all([getDocs(generalQuery), getDocs(specialistQuery)])
+      .then(([generalSnap, specialistSnap]) => {
+        const seen = new Set<string>();
+        const list: UserListItem[] = [];
+        for (const snap of [generalSnap, specialistSnap]) {
+          for (const d of snap.docs) {
+            if (seen.has(d.id)) continue;
+            seen.add(d.id);
+            const data = d.data();
+            list.push({
+              uid: d.id,
+              displayName: (data.displayName as string) ?? null,
+              jobTitle: (data.jobTitle as string) ?? null,
+              email: (data.email as string) ?? null,
+            });
+          }
+        }
         setUsers(list);
       })
       .catch((err) => {

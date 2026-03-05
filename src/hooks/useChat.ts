@@ -1,10 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
-import { onSnapshot, addDoc, deleteDoc, serverTimestamp, orderBy, query } from 'firebase/firestore';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { onSnapshot, addDoc, deleteDoc, serverTimestamp, orderBy, query, limitToLast } from 'firebase/firestore';
 import { getMessagesRef, getMessageRef } from '../lib/firestore-paths';
 import { uploadChatFile, deleteTaskFileByUrl, type UploadProgressCallback } from '../lib/storage';
 import { canAccessAdmin } from '../lib/auth';
 import type { ChatMessage } from '../types/chat';
 import type { AppUser } from '../types/user';
+
+const INITIAL_MESSAGE_LIMIT = 100;
+const LOAD_MORE_STEP = 100;
 
 interface UseChatOptions {
   projectId: string;
@@ -21,6 +24,8 @@ interface UseChatResult {
   loading: boolean;
   error: string | null;
   clearError: () => void;
+  hasMore: boolean;
+  loadMore: () => void;
 }
 
 /** 관리자/특수 계정은 모든 메시지, 일반 사용자는 본인 발신 메시지만 삭제 가능 */
@@ -38,8 +43,23 @@ export function useChat({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [messageLimit, setMessageLimit] = useState(INITIAL_MESSAGE_LIMIT);
+  const [hasMore, setHasMore] = useState(false);
+  const prevChannelRef = useRef<string>('');
 
   const clearError = useCallback(() => setError(null), []);
+
+  const loadMore = useCallback(() => {
+    setMessageLimit((prev) => prev + LOAD_MORE_STEP);
+  }, []);
+
+  useEffect(() => {
+    const channel = `${projectId}/${subMenuId}`;
+    if (channel !== prevChannelRef.current) {
+      prevChannelRef.current = channel;
+      setMessageLimit(INITIAL_MESSAGE_LIMIT);
+    }
+  }, [projectId, subMenuId]);
 
   useEffect(() => {
     if (!projectId || !subMenuId) {
@@ -49,7 +69,7 @@ export function useChat({
     }
 
     const messagesRef = getMessagesRef(projectId, subMenuId);
-    const q = query(messagesRef, orderBy('createdAt', 'asc'));
+    const q = query(messagesRef, orderBy('createdAt', 'asc'), limitToLast(messageLimit));
 
     let unsub: (() => void) | null = null;
     unsub = onSnapshot(
@@ -71,6 +91,7 @@ export function useChat({
             fileType: data.fileType ?? null,
           };
         });
+        setHasMore(list.length >= messageLimit);
         setMessages(list);
         setLoading(false);
         setError(null);
@@ -88,7 +109,7 @@ export function useChat({
     return () => {
       if (unsub) unsub();
     };
-  }, [projectId, subMenuId]);
+  }, [projectId, subMenuId, messageLimit]);
 
   const sendMessage = useCallback(
     async (text: string) => {
@@ -170,5 +191,5 @@ export function useChat({
     [projectId, subMenuId, currentUser]
   );
 
-  return { messages, sendMessage, sendFileMessage, deleteMessage, canDeleteMessage, loading, error, clearError };
+  return { messages, sendMessage, sendFileMessage, deleteMessage, canDeleteMessage, loading, error, clearError, hasMore, loadMore };
 }
