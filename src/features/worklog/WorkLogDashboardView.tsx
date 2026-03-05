@@ -55,6 +55,9 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const [weekHolidayDateKeys, setWeekHolidayDateKeys] = useState<Set<string>>(new Set());
   const [weekHolidayLoaded, setWeekHolidayLoaded] = useState(false);
   const [overtimeLoading, setOvertimeLoading] = useState<string | null>(null);
+  const [overtimeModalOpen, setOvertimeModalOpen] = useState(false);
+  const [overtimeReason, setOvertimeReason] = useState('');
+  const [overtimeTargetLogId, setOvertimeTargetLogId] = useState<string | null>(null);
 
   const { addToast } = useToastContext();
   const { todayLog: rawTodayLog, loading: todayLoading, error: todayError } = useTodayWorkLog(currentUser.uid, now);
@@ -238,20 +241,30 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
     });
   }, [workLogs, now]);
 
-  const handleStartOvertime = useCallback(
-    async (logId: string) => {
-      if (overtimeLoading) return;
-      setOvertimeLoading(logId);
-      try {
-        await startOvertime(logId);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setOvertimeLoading(null);
-      }
-    },
-    [overtimeLoading]
-  );
+  const handleOvertimeSubmit = useCallback(async () => {
+    if (!overtimeTargetLogId || !overtimeReason.trim() || overtimeLoading) return;
+    setOvertimeLoading(overtimeTargetLogId);
+    try {
+      await startOvertime(overtimeTargetLogId, overtimeReason.trim());
+      setOvertimeModalOpen(false);
+      setOvertimeReason('');
+      setOvertimeTargetLogId(null);
+      addToast({
+        title: '야근 시작',
+        message: '야근이 시작되었습니다. 야근 종료 시 버튼을 눌러 주세요.',
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setOvertimeLoading(null);
+    }
+  }, [overtimeTargetLogId, overtimeReason, overtimeLoading, addToast]);
+
+  const handleOpenOvertimeModal = useCallback((logId: string) => {
+    setOvertimeTargetLogId(logId);
+    setOvertimeReason('');
+    setOvertimeModalOpen(true);
+  }, []);
 
   const handleEndOvertime = useCallback(
     async (logId: string) => {
@@ -456,7 +469,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                   {todayLog.overtimeStartAt == null ? (
                     <button
                       type="button"
-                      onClick={() => handleStartOvertime(todayLog.id)}
+                      onClick={() => handleOpenOvertimeModal(todayLog.id)}
                       disabled={overtimeLoading === todayLog.id}
                       className="w-full py-2 px-4 rounded-lg border border-brand-main text-brand-main font-medium hover:bg-brand-main/10 disabled:opacity-50 flex items-center justify-center gap-2"
                     >
@@ -681,6 +694,49 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
               >
                 {clockInLoading ? <Loader2 size={16} className="animate-spin" /> : <Clock size={16} />}
                 출근하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 야근 사유 모달 */}
+      {overtimeModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-brand-dark mb-2">야근 사유를 상세히 기술해주세요</h3>
+            <p className="text-sm text-gray-600 mb-4">18시 이후 야근을 시작할 때 사유를 입력한 뒤 제출해 주세요.</p>
+            <textarea
+              value={overtimeReason}
+              onChange={(e) => setOvertimeReason(e.target.value)}
+              placeholder="야근 사유 입력"
+              className="w-full border border-gray-300 rounded-lg p-3 text-sm min-h-[80px] resize-y"
+              rows={3}
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setOvertimeModalOpen(false);
+                  setOvertimeReason('');
+                  setOvertimeTargetLogId(null);
+                }}
+                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-1"
+              >
+                <X size={16} /> 취소
+              </button>
+              <button
+                type="button"
+                onClick={handleOvertimeSubmit}
+                disabled={!overtimeReason.trim() || !!overtimeLoading}
+                className="flex-1 py-2 px-4 rounded-lg bg-brand-main text-white font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1"
+              >
+                {overtimeTargetLogId && overtimeLoading === overtimeTargetLogId ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Clock size={16} />
+                )}
+                제출
               </button>
             </div>
           </div>

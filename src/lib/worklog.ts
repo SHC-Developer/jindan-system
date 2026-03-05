@@ -21,6 +21,7 @@ export async function createWorkLog(
     tardinessReason: tardinessReason ?? null,
     overtimeStartAt: null,
     overtimeEndAt: null,
+    overtimeReason: null,
   });
   return docRef.id;
 }
@@ -69,11 +70,12 @@ export async function clockOutWorkLog(logId: string, clockOutAtMs?: number): Pro
   });
 }
 
-/** 야근 시작: 퇴근된 기록에 overtimeStartAt 설정. */
-export async function startOvertime(logId: string): Promise<void> {
+/** 야근 시작: 퇴근된 기록에 overtimeStartAt 및 야근 사유 설정. */
+export async function startOvertime(logId: string, overtimeReason?: string | null): Promise<void> {
   const ref = getWorkLogRef(logId);
   await updateDoc(ref, {
     overtimeStartAt: Date.now(),
+    overtimeReason: overtimeReason ?? null,
   });
 }
 
@@ -104,6 +106,7 @@ export async function createAbsentWorkLog(
     tardinessReason: null,
     overtimeStartAt: null,
     overtimeEndAt: null,
+    overtimeReason: null,
   });
   return docRef.id;
 }
@@ -126,6 +129,7 @@ export async function getWorkLog(logId: string): Promise<{
   tardinessReason: string | null;
   overtimeStartAt: number | null;
   overtimeEndAt: number | null;
+  overtimeReason: string | null;
 } | null> {
   const ref = getWorkLogRef(logId);
   const snap = await getDoc(ref);
@@ -142,5 +146,6 @@ export async function getWorkLog(logId: string): Promise<{
     tardinessReason: (d.tardinessReason as string | null) ?? null,
     overtimeStartAt: (d.overtimeStartAt as number | null) ?? null,
     overtimeEndAt: (d.overtimeEndAt as number | null) ?? null,
+    overtimeReason: (d.overtimeReason as string | null) ?? null,
   };
 }

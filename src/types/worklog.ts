@@ -15,4 +15,6 @@ export interface WorkLogEntry {
   overtimeStartAt: number | null;
   /** 야근 종료 시각 (ms). 야근 종료 버튼 또는 다음날 06:00 자동 종료 시 설정 */
   overtimeEndAt: number | null;
+  /** 야근 시작 시 사용자가 입력한 사유 */
+  overtimeReason: string | null;
 }

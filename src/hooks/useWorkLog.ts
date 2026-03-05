@@ -18,6 +18,7 @@ function dataToWorkLogEntry(id: string, data: Record<string, unknown>): WorkLogE
     tardinessReason: (data.tardinessReason as string | null) ?? null,
     overtimeStartAt: (data.overtimeStartAt as number | null) ?? null,
     overtimeEndAt: (data.overtimeEndAt as number | null) ?? null,
+    overtimeReason: (data.overtimeReason as string | null) ?? null,
   };
 }
 

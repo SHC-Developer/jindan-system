@@ -80,6 +80,7 @@ interface DbRow {
   totalMs: number | null;
   note: string;
   tardinessReason: string | null;
+  overtimeReason: string | null;
   logId?: string;
 }
 
@@ -302,6 +303,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
         totalMs,
         note,
         tardinessReason: log.tardinessReason,
+        overtimeReason: log.overtimeReason ?? null,
         logId: log.id,
       };
     });
@@ -327,6 +329,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
           totalMs: null,
           note: '',
           tardinessReason: null,
+          overtimeReason: null,
         });
       });
     });
@@ -382,6 +385,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
       총근무시간: r.totalMs != null ? formatDurationMs(r.totalMs) : '',
       비고: r.note,
       지각사유: r.tardinessReason ?? '',
+      야근사유: r.overtimeReason ?? '',
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -606,7 +610,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                 </div>
 
                 <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto shadow-sm">
-                  <table className="w-full text-sm border-collapse min-w-[720px]">
+                  <table className="w-full text-sm border-collapse min-w-[860px]">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
                         <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">날짜</th>
@@ -619,12 +623,13 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                         <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">총 근무 시간</th>
                         <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">비고</th>
                         <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">지각 사유</th>
+                        <th className="text-left py-2 px-2 font-medium text-gray-700 whitespace-nowrap">야근 사유</th>
                       </tr>
                     </thead>
                     <tbody>
                       {dbRows.length === 0 ? (
                         <tr>
-                          <td colSpan={10} className="py-8 text-center text-gray-500">
+                          <td colSpan={11} className="py-8 text-center text-gray-500">
                             조건에 맞는 기록이 없습니다.
                           </td>
                         </tr>
@@ -668,6 +673,9 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                             <td className="py-2 px-2 text-gray-700 whitespace-nowrap">{r.note || '-'}</td>
                             <td className="py-2 px-2 text-gray-600 max-w-[140px] truncate whitespace-nowrap" title={r.tardinessReason ?? ''}>
                               {r.tardinessReason ?? '-'}
+                            </td>
+                            <td className="py-2 px-2 text-gray-600 max-w-[140px] truncate whitespace-nowrap" title={r.overtimeReason ?? ''}>
+                              {r.overtimeReason ?? '-'}
                             </td>
                           </tr>
                         ))
