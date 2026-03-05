@@ -23,7 +23,7 @@ function formatDateKeySlash(dateKey: string): string {
 }
 
 const DEFAULT_GOAL_COUNT = 3;
-const NOTEPAD_ICON = '/notepad.png';
+const NOTEPAD_ICON = `${import.meta.env.BASE_URL}notepad.png`;
 
 interface DailyJournalWriteViewProps {
   currentUser: AppUser;
@@ -132,13 +132,13 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
           ) : items.length === 0 ? (
             <p className="text-gray-500 text-sm">저장된 업무일지가 없습니다.</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-wrap gap-4">
               {items.map(({ id, dateKey }) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => openWrite(dateKey)}
-                  className="flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 bg-white hover:border-brand-sub hover:bg-brand-sub/5 text-left transition-colors"
+                  className="flex items-center gap-3 p-3 rounded-xl border-2 border-gray-200 bg-white hover:border-brand-sub hover:bg-brand-sub/5 text-left transition-colors flex-shrink-0"
                 >
                   <img
                     src={NOTEPAD_ICON}

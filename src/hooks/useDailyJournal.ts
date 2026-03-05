@@ -37,9 +37,11 @@ export function useMyDailyJournals(userId: string | null): {
           })
         );
         setError(null);
+        setLoading(false);
       },
       (err) => {
         setError(err instanceof Error ? err.message : '목록을 불러오지 못했습니다.');
+        setLoading(false);
       },
       () => setLoading(false)
     );

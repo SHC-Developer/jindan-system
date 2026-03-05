@@ -7,7 +7,7 @@ import type { AppUser } from '../../types/user';
 import { Loader2, User } from 'lucide-react';
 
 const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
-const NOTEPAD_ICON = '/notepad.png';
+const NOTEPAD_ICON = `${import.meta.env.BASE_URL}notepad.png`;
 
 function formatDateKeyLong(dateKey: string): string {
   const [y, m, d] = dateKey.split('-').map(Number);
@@ -56,8 +56,8 @@ export function DailyJournalAdminView({ currentUser }: DailyJournalAdminViewProp
 
   if (viewingDateKey && journal) {
     return (
-      <div className="h-full overflow-auto bg-brand-light">
-        <div className="max-w-3xl mx-auto p-4 md:p-6">
+      <div className="w-full h-full overflow-auto bg-brand-light/30">
+        <div className="max-w-6xl mx-auto p-6">
           <div className="flex items-center justify-between mb-4">
             <button
               type="button"
@@ -114,8 +114,8 @@ export function DailyJournalAdminView({ currentUser }: DailyJournalAdminViewProp
 
   if (selectedEmployee) {
     return (
-      <div className="h-full overflow-auto bg-brand-light">
-        <div className="max-w-2xl mx-auto p-4 md:p-6">
+      <div className="w-full h-full overflow-auto bg-brand-light/30">
+        <div className="max-w-6xl mx-auto p-6">
           <div className="flex items-center justify-between mb-6">
             <button
               type="button"
@@ -137,13 +137,13 @@ export function DailyJournalAdminView({ currentUser }: DailyJournalAdminViewProp
           ) : items.length === 0 ? (
             <p className="text-gray-500 text-sm">저장된 업무일지가 없습니다.</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-wrap gap-4">
               {items.map(({ id, dateKey }) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setViewingDateKey(dateKey)}
-                  className="flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 bg-white hover:border-brand-sub hover:bg-brand-sub/5 text-left transition-colors"
+                  className="flex items-center gap-3 p-3 rounded-xl border-2 border-gray-200 bg-white hover:border-brand-sub hover:bg-brand-sub/5 text-left transition-colors flex-shrink-0"
                 >
                   <img
                     src={NOTEPAD_ICON}
@@ -163,8 +163,8 @@ export function DailyJournalAdminView({ currentUser }: DailyJournalAdminViewProp
   }
 
   return (
-    <div className="h-full overflow-auto bg-brand-light">
-      <div className="max-w-3xl mx-auto p-4 md:p-6">
+    <div className="w-full h-full overflow-auto bg-brand-light/30">
+      <div className="max-w-6xl mx-auto p-6">
         <h2 className="text-lg font-semibold text-brand-dark mb-3">업무일지를 확인할 직원을 선택하세요</h2>
         {usersLoading ? (
           <p className="text-sm text-gray-500 flex items-center gap-2">
