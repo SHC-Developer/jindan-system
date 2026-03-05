@@ -20,7 +20,7 @@ import { CadChatPage } from './features/cad-chat/CadChatPage';
 import { canAccessAdmin } from './lib/auth';
 import type { AppUser } from './types/user';
 import type { Project } from './types/project';
-import type { ActiveSection, MiddleMenuId } from './types/layout';
+import type { ActiveSection, MiddleMenuId, SpecialistViewMode } from './types/layout';
 import { MIDDLE_MENUS } from './constants/navigation';
 
 function buildSidebarProps(
@@ -42,7 +42,9 @@ function buildSidebarProps(
   onUpdateProjectName: (projectId: string, name: string) => Promise<void>,
   onDeleteProject: (projectId: string) => Promise<void>,
   onProfilePhotoUpdate: (url: string) => void,
-  onProfilePhotoDelete: () => Promise<void>
+  onProfilePhotoDelete: () => Promise<void>,
+  specialistViewMode?: SpecialistViewMode,
+  onToggleSpecialistViewMode?: () => void
 ) {
   return {
   projects,
@@ -57,6 +59,8 @@ function buildSidebarProps(
   isProjectsExpanded,
   setProjectsExpanded: setIsProjectsExpanded,
   user,
+  specialistViewMode,
+  onToggleSpecialistViewMode,
   onLogout: handleLogout,
   onProfilePhotoUpdate,
   onProfilePhotoDelete,
@@ -115,6 +119,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'chat' | 'automation'>('chat');
   const [activeSection, setActiveSection] = useState<ActiveSection>('general-chat');
   const [isProjectsExpanded, setIsProjectsExpanded] = useState(true);
+  const [specialistViewMode, setSpecialistViewMode] = useState<SpecialistViewMode>('admin');
 
   const selectedMenuData = MIDDLE_MENUS.find((m) => m.id === selectedMenuId) ?? MIDDLE_MENUS[0];
   const isTaskDetailPage = /^\/task\/[^/]+$/.test(location.pathname);
@@ -209,25 +214,31 @@ export default function App() {
     onUpdateProjectName,
     onDeleteProject,
     (url) => updateProfilePhotoUrl(url),
-    () => deleteProfilePhotoAndUpdate()
+    () => deleteProfilePhotoAndUpdate(),
+    user.isSpecialist ? specialistViewMode : undefined,
+    user.isSpecialist ? () => setSpecialistViewMode((m) => (m === 'admin' ? 'general' : 'admin')) : undefined
   );
+
+  const showAdminView = user.isSpecialist
+    ? specialistViewMode === 'admin'
+    : canAccessAdmin(user);
 
   const mainContent = isTaskDetailPage ? (
     <TaskDetailPage />
   ) : activeSection === 'work-assign' ? (
-    canAccessAdmin(user) ? (
+    showAdminView ? (
       <WorkAssignAdminView currentUser={user} />
     ) : (
       <WorkAssignMyListView currentUser={user} />
     )
   ) : activeSection === 'worklog' ? (
-    canAccessAdmin(user) ? (
+    showAdminView ? (
       <WorkLogAdminView currentUser={user} />
     ) : (
       <WorkLogDashboardView currentUser={user} />
     )
   ) : activeSection === 'daily-journal' ? (
-    canAccessAdmin(user) ? (
+    showAdminView ? (
       <DailyJournalAdminView currentUser={user} />
     ) : (
       <DailyJournalWriteView currentUser={user} />

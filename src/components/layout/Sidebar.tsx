@@ -17,6 +17,7 @@ import {
   Loader2,
   X,
   User,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { SidebarProps } from '../../types/layout';
@@ -53,6 +54,8 @@ export function Sidebar({
   setProjectsExpanded: setProjectsExpandedProp,
   onProfilePhotoUpdate,
   onProfilePhotoDelete,
+  specialistViewMode,
+  onToggleSpecialistViewMode,
 }: SidebarProps) {
   const [localExpanded, setLocalExpanded] = useState(true);
   const [profileUploading, setProfileUploading] = useState(false);
@@ -359,6 +362,18 @@ export function Sidebar({
         )}
 
         <div className="px-2 mt-4 pt-4 border-t border-gray-700/50 space-y-0.5">
+          {user.isSpecialist && onToggleSpecialistViewMode && (
+            <button
+              type="button"
+              onClick={onToggleSpecialistViewMode}
+              className="w-full text-left px-2 py-1.5 rounded-md flex items-center text-sm transition-colors mb-1 bg-brand-sub/20 text-brand-sub hover:bg-brand-sub/30"
+            >
+              <ArrowLeftRight size={16} className="mr-2 opacity-80" />
+              <span className="truncate">
+                {specialistViewMode === 'admin' ? '직원 모드로 전환' : '관리자 모드로 전환'}
+              </span>
+            </button>
+          )}
           {onNavigateToDailyJournal && (
             <button
               onClick={onNavigateToDailyJournal}
@@ -370,7 +385,9 @@ export function Sidebar({
             >
               <FileText size={16} className="mr-2 opacity-80" />
               <span className="truncate">
-                {canAccessAdmin(user) ? '업무일지 확인' : '업무일지 작성하기'}
+                {user.isSpecialist
+                  ? (specialistViewMode === 'admin' ? '업무일지 확인' : '업무일지 작성하기')
+                  : (canAccessAdmin(user) ? '업무일지 확인' : '업무일지 작성하기')}
               </span>
             </button>
           )}
@@ -384,7 +401,9 @@ export function Sidebar({
           >
             <CheckSquare size={16} className="mr-2 opacity-80" />
             <span className="truncate">
-              {canAccessAdmin(user) ? '업무 지시하기(현황)' : '업무 지시사항 확인'}
+              {user.isSpecialist
+                ? (specialistViewMode === 'admin' ? '업무 지시하기(현황)' : '업무 지시사항 확인')
+                : (canAccessAdmin(user) ? '업무 지시하기(현황)' : '업무 지시사항 확인')}
             </span>
           </button>
           <button
@@ -477,7 +496,9 @@ export function Sidebar({
             )}
           </div>
           <div className="text-xs text-gray-400 truncate">
-            {user.isSpecialist ? '관리자·직원' : user.role === 'admin' ? '관리자' : '사용자'}
+            {user.isSpecialist
+              ? (specialistViewMode === 'admin' ? '관리자 모드' : '직원 모드')
+              : user.role === 'admin' ? '관리자' : '사용자'}
           </div>
         </div>
         <div className="flex items-center gap-0.5 flex-shrink-0">

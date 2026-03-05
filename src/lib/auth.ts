@@ -20,7 +20,8 @@ function dataToAppUser(
   const displayName = (data?.displayName as string | undefined) ?? firebaseUser.displayName ?? null;
   const jobTitle = (data?.jobTitle as string | undefined) ?? null;
   const photoURL = (data?.photoURL as string | undefined) ?? firebaseUser.photoURL ?? null;
-  const isSpecialist = data?.specialist === true;
+  const isSpecialist =
+    data?.specialist === true || String(data?.specialist).toLowerCase() === 'true';
   return {
     uid: firebaseUser.uid,
     email: firebaseUser.email ?? null,

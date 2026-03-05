@@ -23,6 +23,8 @@ export type ActiveSection =
   | 'cad'
   | 'admin-page';
 
+export type SpecialistViewMode = 'admin' | 'general';
+
 export interface SidebarProps {
   projects: Project[];
   projectsLoading: boolean;
@@ -34,6 +36,9 @@ export interface SidebarProps {
   activeSection: ActiveSection;
   setActiveSection: (s: ActiveSection) => void;
   user: { uid: string; displayName: string | null; jobTitle: string | null; role: 'admin' | 'general'; photoURL: string | null; isSpecialist?: boolean };
+  /** specialist 전용: 현재 보고 있는 뷰 모드 */
+  specialistViewMode?: SpecialistViewMode;
+  onToggleSpecialistViewMode?: () => void;
   onLogout: () => void;
   onProfilePhotoUpdate?: (url: string) => void;
   onProfilePhotoDelete?: () => void;
