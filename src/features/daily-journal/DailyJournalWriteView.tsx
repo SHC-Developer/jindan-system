@@ -50,6 +50,8 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
     viewMode === 'write' ? editingDateKey : null
   );
 
+  const [hasSyncedFromJournal, setHasSyncedFromJournal] = useState(false);
+
   useEffect(() => {
     if (docLoading) return;
     if (journal) {
@@ -57,11 +59,13 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
       setDetailContent(journal.detailContent);
       setTomorrowPlan(journal.tomorrowPlan);
       setMemo(journal.memo);
+      setHasSyncedFromJournal(true);
     } else {
       setGoals(createEmptyGoals(DEFAULT_GOAL_COUNT));
       setDetailContent('');
       setTomorrowPlan('');
       setMemo('');
+      setHasSyncedFromJournal(false);
     }
   }, [journal, editingDateKey, docLoading]);
 
@@ -273,7 +277,8 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
             업무 상세 내용
           </h2>
           <RichTextEditor
-            value={detailContent}
+            key={journal ? `${editingDateKey}-${journal.updatedAt}` : editingDateKey}
+            value={hasSyncedFromJournal ? detailContent : (journal?.detailContent ?? detailContent)}
             onChange={setDetailContent}
             readOnly={!isEditingToday}
             className="min-h-[200px]"
