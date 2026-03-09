@@ -572,7 +572,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
               )}
               {todayLog &&
                 todayLog.clockOutAt != null &&
-                todayLog.clockOutAt >= getTodaySixSeoul(todayLog.clockInAt) &&
+                now >= getTodaySixSeoul(todayLog.clockInAt) &&
                 todayLog.overtimeEndAt == null && (
                 <div className="flex flex-col gap-2 mt-2">
                   {todayLog.overtimeStartAt == null ? (
