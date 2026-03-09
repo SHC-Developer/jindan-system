@@ -21,7 +21,8 @@ export type ActiveSection =
   | 'worklog'
   | 'general-chat'
   | 'cad'
-  | 'admin-page';
+  | 'admin-page'
+  | 'personnel';
 
 export type SpecialistViewMode = 'admin' | 'general';
 
@@ -49,6 +50,7 @@ export interface SidebarProps {
   onNavigateToDailyJournal?: () => void;
   onNavigateToWorkLog: () => void;
   onNavigateToAdmin: () => void;
+  onNavigateToPersonnel?: () => void;
   onCreateProject: (name: string) => Promise<Project>;
   onUpdateProjectName: (projectId: string, name: string) => Promise<void>;
   onDeleteProject: (projectId: string) => Promise<void>;

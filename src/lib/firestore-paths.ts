@@ -136,3 +136,11 @@ export function getDailyJournalsRef(): CollectionReference {
 export function getDailyJournalRef(userId: string, dateKey: string): DocumentReference {
   return doc(getDbInstance(), DAILY_JOURNALS, `${userId}_${dateKey}`);
 }
+
+// --- 인사기록카드 (전역) ---
+const PERSONNEL_RECORDS = 'personnelRecords';
+
+/** personnelRecords/{userId} 문서 참조 */
+export function getPersonnelRecordRef(userId: string): DocumentReference {
+  return doc(getDbInstance(), PERSONNEL_RECORDS, userId);
+}

@@ -1,18 +1,33 @@
-import { MoreHorizontal, CheckSquare, FileText } from 'lucide-react';
+import { MoreHorizontal, CheckSquare, FileText, X } from 'lucide-react';
 
 interface RightPanelProps {
   selectedMenuData: { name: string };
+  /** 모바일에서 패널 열림 여부 (미전달 시 데스크톱처럼 항상 표시) */
+  isOpen?: boolean;
+  /** 모바일에서 패널 닫기 콜백 */
+  onClose?: () => void;
 }
 
-/** 우측 패널 (프로젝트 채팅/공지사항 채팅 공통) - selectedMenuData.name으로 가이드 제목 사용 */
-export function RightPanel({ selectedMenuData }: RightPanelProps) {
+function RightPanelContent({ selectedMenuData, onClose }: RightPanelProps) {
   return (
-    <div className="w-80 bg-brand-light border-l border-gray-200 flex flex-col h-full flex-shrink-0">
-      <div className="h-14 border-b border-gray-200 flex items-center justify-between px-4 bg-brand-light">
+    <>
+      <div className="h-14 border-b border-gray-200 flex items-center justify-between px-4 bg-brand-light flex-shrink-0">
         <span className="font-semibold text-gray-700">정보 패널</span>
-        <button className="text-gray-400 hover:text-gray-600">
-          <MoreHorizontal size={18} />
-        </button>
+        <div className="flex items-center gap-1">
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-600 md:hidden"
+              aria-label="패널 닫기"
+            >
+              <X size={18} />
+            </button>
+          )}
+          <button type="button" className="text-gray-400 hover:text-gray-600 p-2" aria-hidden>
+            <MoreHorizontal size={18} />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -92,6 +107,38 @@ export function RightPanel({ selectedMenuData }: RightPanelProps) {
           </p>
         </div>
       </div>
-    </div>
+    </>
+  );
+}
+
+/** 우측 패널 (프로젝트 채팅/공지사항 채팅 공통) - selectedMenuData.name으로 가이드 제목 사용 */
+export function RightPanel({ selectedMenuData, isOpen = false, onClose }: RightPanelProps) {
+  const content = <RightPanelContent selectedMenuData={selectedMenuData} onClose={onClose} />;
+
+  return (
+    <>
+      {/* 데스크톱/태블릿: 사이드바 */}
+      <div className="hidden md:flex w-80 lg:w-80 bg-brand-light border-l border-gray-200 flex-col h-full flex-shrink-0">
+        {content}
+      </div>
+      {/* 모바일: 오버레이 (열림 시에만 표시) */}
+      {onClose && (
+        <div
+          className={`md:hidden fixed inset-0 z-40 flex flex-col bg-brand-light transition-opacity ${
+            isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+          style={{ visibility: isOpen ? 'visible' : 'hidden' }}
+        >
+          {isOpen && (
+            <>
+              <div className="absolute inset-0 bg-black/30 z-0" onClick={onClose} aria-hidden />
+              <div className="relative z-10 flex flex-col h-full w-full max-w-sm ml-auto bg-brand-light shadow-xl">
+                {content}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </>
   );
 }

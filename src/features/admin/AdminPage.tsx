@@ -26,9 +26,9 @@ export function AdminPage() {
   };
 
   return (
-    <div className="p-6 max-w-2xl">
-      <h1 className="text-xl font-semibold text-brand-dark mb-6">관리자 페이지</h1>
-      <section className="bg-white border border-gray-200 rounded-xl p-6">
+    <div className="p-3 md:p-6 max-w-2xl">
+      <h1 className="text-xl font-semibold text-brand-dark mb-4 md:mb-6">관리자 페이지</h1>
+      <section className="bg-white border border-gray-200 rounded-xl p-3 md:p-6">
         <h2 className="text-sm font-medium text-gray-700 mb-2">데이터 관리</h2>
         <p className="text-sm text-gray-600 mb-4">
           모든 사용자의 notifications(알림) 문서를 일괄 삭제합니다. 실행 후 확인 메시지에서 예를 선택해야 삭제됩니다.

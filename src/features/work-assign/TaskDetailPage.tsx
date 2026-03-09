@@ -130,8 +130,8 @@ export function TaskDetailPage() {
   return (
     <div className="w-full h-full flex flex-col overflow-hidden bg-brand-light/30">
       <div className="max-w-6xl mx-auto w-full h-full flex flex-col min-h-0 overflow-hidden">
-        <div className="flex-shrink-0 px-6 pt-6">
-          <header className="flex items-center gap-3 py-4 px-4 bg-white border border-gray-200 rounded-t-xl">
+        <div className="flex-shrink-0 px-3 md:px-6 pt-3 md:pt-6">
+          <header className="flex items-center gap-3 py-3 md:py-4 px-3 md:px-4 bg-white border border-gray-200 rounded-t-xl">
         <button
           type="button"
           onClick={() => navigate('/')}
@@ -144,8 +144,8 @@ export function TaskDetailPage() {
           </header>
         </div>
 
-      <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-6">
-        <section className="bg-white rounded-xl border border-gray-200 p-4">
+      <div className="flex-1 overflow-y-auto px-3 md:px-6 pb-3 md:pb-6 space-y-4 md:space-y-6">
+        <section className="bg-white rounded-xl border border-gray-200 p-3 md:p-4">
           <dl className="space-y-2 text-sm">
             <div>
               <dt className="text-gray-500">지시자</dt>
@@ -173,7 +173,7 @@ export function TaskDetailPage() {
         </section>
 
         {canEdit && (
-          <section className="bg-white rounded-xl border border-gray-200 p-4">
+          <section className="bg-white rounded-xl border border-gray-200 p-3 md:p-4">
             <h3 className="font-medium text-gray-800 mb-2">업무 처리 설명 (선택)</h3>
             <p className="text-sm text-gray-500 mb-2">어떤 식으로 업무를 처리했는지 간단히 적어 주세요.</p>
             <textarea
@@ -187,13 +187,13 @@ export function TaskDetailPage() {
         )}
 
         {(task.submissionNote != null && task.submissionNote !== '') && (
-          <section className="bg-white rounded-xl border border-gray-200 p-4">
+          <section className="bg-white rounded-xl border border-gray-200 p-3 md:p-4">
             <h3 className="font-medium text-gray-800 mb-2">업무 처리 설명</h3>
             <p className="text-sm text-gray-900 whitespace-pre-wrap">{task.submissionNote}</p>
           </section>
         )}
 
-        <section className="bg-white rounded-xl border border-gray-200 p-4">
+        <section className="bg-white rounded-xl border border-gray-200 p-3 md:p-4">
           <h3 className="font-medium text-gray-800 flex items-center gap-2 mb-3">
             <Paperclip size={16} /> 첨부 파일
           </h3>

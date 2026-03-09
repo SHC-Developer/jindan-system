@@ -10,7 +10,7 @@ interface ChatMessageAvatarProps {
 
 /** 채팅 메시지 발신자 아바타: 프로필 사진이 있으면 원형 이미지, 없으면 사람 아이콘. 클릭 시 원본 보기 가능 */
 export function ChatMessageAvatar({ photoURL, displayName, className = '', onAvatarClick }: ChatMessageAvatarProps) {
-  const baseClass = 'w-12 h-12 rounded-full mr-3 mt-1 flex-shrink-0 flex items-center justify-center overflow-hidden bg-white text-[#37392E]';
+  const baseClass = 'w-9 h-9 md:w-12 md:h-12 rounded-full mr-2 md:mr-3 mt-1 flex-shrink-0 flex items-center justify-center overflow-hidden bg-white text-[#37392E]';
   const combinedClass = `${baseClass} ${className}`.trim();
 
   if (photoURL) {
@@ -19,7 +19,7 @@ export function ChatMessageAvatar({ photoURL, displayName, className = '', onAva
         <button
           type="button"
           onClick={() => onAvatarClick(photoURL)}
-          className="w-12 h-12 rounded-full mr-3 mt-1 flex-shrink-0 overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#28AFB0] focus:ring-offset-1 p-0 border-0 cursor-pointer bg-white"
+          className="w-9 h-9 md:w-12 md:h-12 rounded-full mr-2 md:mr-3 mt-1 flex-shrink-0 overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#28AFB0] focus:ring-offset-1 p-0 border-0 cursor-pointer bg-white min-w-[36px] min-h-[36px] md:min-w-[48px] md:min-h-[48px]"
           aria-label={displayName ? `${displayName} 프로필 보기` : '프로필 보기'}
         >
           <img
@@ -44,7 +44,7 @@ export function ChatMessageAvatar({ photoURL, displayName, className = '', onAva
       <button
         type="button"
         onClick={() => onAvatarClick(null)}
-        className="w-12 h-12 rounded-full mr-3 mt-1 flex-shrink-0 overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#28AFB0] focus:ring-offset-1 p-0 border-0 cursor-pointer bg-white flex items-center justify-center text-[#37392E]"
+        className="w-9 h-9 md:w-12 md:h-12 rounded-full mr-2 md:mr-3 mt-1 flex-shrink-0 overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#28AFB0] focus:ring-offset-1 p-0 border-0 cursor-pointer bg-white flex items-center justify-center text-[#37392E] min-w-[36px] min-h-[36px] md:min-w-[48px] md:min-h-[48px]"
         aria-label={displayName ? `${displayName} 프로필 보기` : '프로필 보기'}
       >
         <User size={20} />

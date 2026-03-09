@@ -10,12 +10,12 @@ import {
   createOvertimeOnlyWorkLog,
   updateAbsentToOvertime,
 } from '../../lib/worklog';
-import { addLeaveDay, removeLeaveDay } from '../../lib/leaveDays';
+import { addLeaveRequest, removeLeaveDay, type LeaveDayType } from '../../lib/leaveDays';
 import { notifyAdmins } from '../../lib/notifications';
 import {
   toDateKeySeoul,
   getDayOfWeekSeoul,
-  getNineAmSeoul,
+  getFiveAmSeoul,
   getNineTenSeoul,
   getTodaySixSeoul,
   getTodaySixTenSeoul,
@@ -74,7 +74,19 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const todayLog =
     rawTodayLog != null && rawTodayLog.userId === currentUser.uid ? rawTodayLog : null;
   const { workLogs, loading: listLoading, error: listError } = useMyWorkLogs(currentUser.uid);
-  const { leaveDateKeys, approvedDateKeys, loading: leaveLoading } = useLeaveDays(currentUser.uid);
+  const { items: leaveItems, leaveDateKeys, approvedDateKeys, loading: leaveLoading } = useLeaveDays(currentUser.uid);
+  const leaveItemByDateKey = useMemo(() => {
+    const m = new Map<string, (typeof leaveItems)[0]>();
+    leaveItems.forEach((item) => m.set(item.dateKey, item));
+    return m;
+  }, [leaveItems]);
+
+  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
+  const [leaveRequestModalOpen, setLeaveRequestModalOpen] = useState(false);
+  const [leaveRequestType, setLeaveRequestType] = useState<LeaveDayType>('annual');
+  const [leaveRequestReason, setLeaveRequestReason] = useState('');
+  const [leaveRequestSending, setLeaveRequestSending] = useState(false);
+  const [pendingCancelDateKey, setPendingCancelDateKey] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -110,9 +122,9 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const isLeaveToday = leaveDateKeys.has(todayKey);
   const isHolidayToday = holidayDateKeys.has(todayKey);
   const isTardyNow = isWeekday && !isHolidayToday && now > getNineTenSeoul(now);
-  const nineAm = getNineAmSeoul(now);
+  const fiveAm = getFiveAmSeoul(now);
   const sixPm = getTodaySixSeoul(now);
-  const isBetweenNineAndSix = now >= nineAm && now < sixPm;
+  const isBetweenFiveAndSix = now >= fiveAm && now < sixPm;
   const isAfterSixPm = now >= sixPm;
 
   const handleClockInClick = useCallback(() => {
@@ -187,7 +199,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const statusText = todayLog && todayLog.status !== 'absent' ? '정상 근무' : null;
 
   const showClockInButton =
-    !isLeaveToday && (!todayLog || todayLog.status === 'absent') && !clockInLoading && isBetweenNineAndSix;
+    !isLeaveToday && (!todayLog || todayLog.status === 'absent') && !clockInLoading && isBetweenFiveAndSix;
   const showDirectOvertimeButton =
     !isLeaveToday &&
     isAfterSixPm &&
@@ -378,52 +390,60 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const loading = todayLoading || listLoading || leaveLoading;
   const error = todayError ?? listError;
 
-  const toggleLeaveDay = useCallback(
+  const handleCalendarDateClick = useCallback(
     (dateKey: string) => {
       if (approvedDateKeys.has(dateKey)) return;
       if (leaveDateKeys.has(dateKey)) {
-        removeLeaveDay(currentUser.uid, dateKey).catch(console.error);
-      } else {
-        addLeaveDay(currentUser.uid, dateKey).catch(console.error);
+        setPendingCancelDateKey(dateKey);
+        return;
       }
+      setSelectedDates((prev) => {
+        const next = new Set(prev);
+        if (next.has(dateKey)) next.delete(dateKey);
+        else next.add(dateKey);
+        return next;
+      });
     },
-    [currentUser.uid, leaveDateKeys, approvedDateKeys]
-  );
-
-  const pendingLeaveKeys = useMemo(
-    () => new Set([...leaveDateKeys].filter((k) => !approvedDateKeys.has(k))),
     [leaveDateKeys, approvedDateKeys]
   );
-  const [lastRequestedPendingKeys, setLastRequestedPendingKeys] = useState<Set<string>>(new Set());
-  const pendingNotYetRequested = useMemo(
-    () => [...pendingLeaveKeys].filter((k) => !lastRequestedPendingKeys.has(k)),
-    [pendingLeaveKeys, lastRequestedPendingKeys]
-  );
-  const showLeaveRequestButton = pendingNotYetRequested.length > 0;
-  const showLeaveRequestDone = lastRequestedPendingKeys.size > 0 && pendingNotYetRequested.length === 0;
 
-  const [leaveRequestSending, setLeaveRequestSending] = useState(false);
-  const handleLeaveRequest = useCallback(async () => {
-    if (pendingLeaveKeys.size === 0 || leaveRequestSending) return;
+  const handleLeaveRequestSubmit = useCallback(async () => {
+    const reason = leaveRequestReason.trim();
+    if (selectedDates.size === 0 || !reason || leaveRequestSending) return;
     setLeaveRequestSending(true);
     try {
-      const dateKeys = [...pendingLeaveKeys].sort();
-      const dateLabel = dateKeys.length <= 3
-        ? dateKeys.map((k) => k.slice(5).replace('-', '/')).join(', ')
-        : `${dateKeys[0].slice(5).replace('-', '/')} 외 ${dateKeys.length - 1}건`;
+      const dateKeys = [...selectedDates].sort();
+      for (const dateKey of dateKeys) {
+        await addLeaveRequest(currentUser.uid, dateKey, leaveRequestType, reason);
+      }
+      const dateLabel =
+        dateKeys.length <= 3
+          ? dateKeys.map((k) => k.slice(5).replace('-', '/')).join(', ')
+          : `${dateKeys[0].slice(5).replace('-', '/')} 외 ${dateKeys.length - 1}건`;
       await notifyAdmins({
         type: 'leave_approval_request',
         title: `연차 승인 요청 (${dateLabel})`,
         leaveUserDisplayName: currentUser.displayName ?? undefined,
         leaveDateKey: dateKeys.join(','),
       });
-      setLastRequestedPendingKeys(new Set(pendingLeaveKeys));
+      setSelectedDates(new Set());
+      setLeaveRequestModalOpen(false);
+      setLeaveRequestReason('');
+      addToast({ title: '연차 신청 완료', message: '관리자 승인 후 반영됩니다.' });
     } catch (err) {
       showError('연차 신청 실패', err);
     } finally {
       setLeaveRequestSending(false);
     }
-  }, [pendingLeaveKeys, leaveRequestSending, currentUser.displayName, showError]);
+  }, [selectedDates, leaveRequestType, leaveRequestReason, leaveRequestSending, currentUser.uid, currentUser.displayName, addToast, showError]);
+
+  const handleConfirmCancelLeave = useCallback(() => {
+    if (!pendingCancelDateKey) return;
+    removeLeaveDay(currentUser.uid, pendingCancelDateKey).catch((e) => showError('연차 신청 취소 실패', e));
+    setPendingCancelDateKey(null);
+  }, [pendingCancelDateKey, currentUser.uid, showError]);
+
+  const showLeaveRequestButton = selectedDates.size >= 1;
 
   if (loading) {
     return (
@@ -471,7 +491,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
 
   return (
     <div className="w-full h-full overflow-auto bg-brand-light/30">
-      <div className="max-w-4xl mx-auto p-6 space-y-6">
+      <div className="max-w-4xl mx-auto p-3 md:p-6 space-y-4 md:space-y-6">
         {/* 상단: 날짜(서울), 환영 메시지, 온라인 */}
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -490,8 +510,8 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
         </div>
 
         {/* 중앙: 현재 시간(서울), 상태, 출근/퇴근 버튼, 오늘 근무 시간 카드 */}
-        <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-6 items-start">
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr,auto] gap-4 md:gap-6 items-start">
+          <div className="bg-white border border-gray-200 rounded-xl p-3 md:p-6 shadow-sm">
             {statusText && (
               <p className="text-sm font-medium mb-2 text-brand-sub">
                 {statusText}
@@ -589,7 +609,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
             </p>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm min-w-[200px]">
+          <div className="bg-white border border-gray-200 rounded-xl p-3 md:p-5 shadow-sm min-w-0 md:min-w-[200px]">
             <h3 className="text-sm font-medium text-gray-700 mb-2">오늘 근무 시간</h3>
             {(!todayLog || todayLog.status === 'absent') && (
               <>
@@ -700,8 +720,10 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                 </div>
               ))}
               {calendarDays.map(({ dateKey, day, isCurrentMonth }) => {
+                const item = leaveItemByDateKey.get(dateKey);
                 const isLeave = leaveDateKeys.has(dateKey);
                 const isApproved = approvedDateKeys.has(dateKey);
+                const isSelected = selectedDates.has(dateKey);
                 const isToday = dateKey === todayKey;
                 const dayMs = new Date(dateKey + 'T12:00:00+09:00').getTime();
                 const dayOfWeek = getDayOfWeekSeoul(dayMs);
@@ -717,45 +739,44 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                     : isBlue
                       ? 'text-[var(--color-calendar-sat)]'
                       : 'text-gray-800';
+                const typeLabel =
+                  item?.type === 'morning_half'
+                    ? '오전반차'
+                    : item?.type === 'afternoon_half'
+                      ? '오후반차'
+                      : '연차';
                 return (
                   <button
                     key={dateKey}
                     type="button"
-                    onClick={() => toggleLeaveDay(dateKey)}
+                    onClick={() => handleCalendarDateClick(dateKey)}
                     className={`py-2 rounded border transition-colors ${dayColor} ${
                       isLeave ? 'bg-brand-sub/30 border-brand-sub' : 'border-transparent hover:bg-gray-100'
-                    } ${isToday ? 'ring-2 ring-brand-main' : ''} ${isApproved ? 'cursor-default' : ''}`}
+                    } ${isSelected ? 'ring-2 ring-dashed ring-brand-main' : ''} ${isToday ? 'ring-2 ring-brand-main' : ''} ${isApproved ? 'cursor-default' : ''}`}
                   >
                     {day}
                     {isLeave && (
                       <span className="block text-xs text-brand-dark mt-0.5">
-                        연차{isApproved ? '(승인)' : ''}
+                        {typeLabel}{isApproved ? '(승인)' : '(대기)'}
                       </span>
                     )}
                   </button>
                 );
               })}
             </div>
-            <p className="text-xs text-gray-500 mt-3">날짜를 클릭하면 연차로 지정/해제됩니다. 선택 후 아래 버튼으로 관리자에게 승인 요청을 보내세요.</p>
+            <p className="text-xs text-gray-500 mt-3">
+              날짜를 선택한 뒤 연차/반차 신청 버튼을 눌러 유형과 사유를 입력해 제출하세요. 대기 중인 연차는 다시 클릭하면 취소할 수 있습니다.
+            </p>
             {showLeaveRequestButton && (
               <div className="mt-3 pt-3 border-t border-gray-200">
                 <button
                   type="button"
-                  onClick={handleLeaveRequest}
-                  disabled={leaveRequestSending}
+                  onClick={() => setLeaveRequestModalOpen(true)}
                   className="w-full py-2 px-4 rounded-lg bg-brand-main text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  {leaveRequestSending ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : null}
-                  연차 요청 ({pendingNotYetRequested.length}일)
+                  연차/반차 신청 ({selectedDates.size}일)
                 </button>
               </div>
-            )}
-            {showLeaveRequestDone && (
-              <p className="mt-3 pt-3 border-t border-gray-200 text-sm text-brand-main font-medium text-center">
-                연차 요청이 완료되었습니다.
-              </p>
             )}
           </div>
         </div>
@@ -764,7 +785,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       {/* 지각 사유 모달 */}
       {tardinessModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 md:p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-brand-dark mb-2">지각 사유를 작성해주세요</h3>
             <p className="text-sm text-gray-600 mb-4">오전 09:10 이후 출근 시 사유를 입력한 뒤 출근하기를 눌러 주세요.</p>
             <textarea
@@ -802,7 +823,7 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       {/* 야근 사유 모달 */}
       {overtimeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 md:p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold text-brand-dark mb-2">야근 사유를 상세히 기술해주세요</h3>
             <p className="text-sm text-gray-600 mb-4">18시 이후 야근을 시작할 때 사유를 입력한 뒤 제출해 주세요.</p>
             <textarea
@@ -837,6 +858,112 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                   <Clock size={16} />
                 )}
                 제출
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 연차/반차 신청 모달 */}
+      {leaveRequestModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-4 md:p-6 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-brand-dark mb-2">연차/반차 신청</h3>
+            <p className="text-sm text-gray-600 mb-2">
+              선택한 날짜: {[...selectedDates].sort().map((k) => k.slice(5).replace('-', '/')).join(', ')}
+            </p>
+            <div className="mb-3">
+              <p className="text-sm font-medium text-gray-700 mb-2">유형</p>
+              <div className="flex flex-col gap-1.5">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="leaveType"
+                    checked={leaveRequestType === 'annual'}
+                    onChange={() => setLeaveRequestType('annual')}
+                    className="text-brand-main"
+                  />
+                  <span className="text-sm">연차 (1일)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="leaveType"
+                    checked={leaveRequestType === 'morning_half'}
+                    onChange={() => setLeaveRequestType('morning_half')}
+                    className="text-brand-main"
+                  />
+                  <span className="text-sm">오전반차 (0.5일)</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="leaveType"
+                    checked={leaveRequestType === 'afternoon_half'}
+                    onChange={() => setLeaveRequestType('afternoon_half')}
+                    className="text-brand-main"
+                  />
+                  <span className="text-sm">오후반차 (0.5일)</span>
+                </label>
+              </div>
+            </div>
+            <div className="mb-4">
+              <p className="text-sm font-medium text-gray-700 mb-1">사유 (필수)</p>
+              <textarea
+                value={leaveRequestReason}
+                onChange={(e) => setLeaveRequestReason(e.target.value)}
+                placeholder="연차/반차 사유를 간단히 작성해주세요."
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm min-h-[80px] resize-y"
+                rows={3}
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setLeaveRequestModalOpen(false);
+                  setLeaveRequestReason('');
+                }}
+                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-1"
+              >
+                <X size={16} /> 취소
+              </button>
+              <button
+                type="button"
+                onClick={handleLeaveRequestSubmit}
+                disabled={!leaveRequestReason.trim() || leaveRequestSending}
+                className="flex-1 py-2 px-4 rounded-lg bg-brand-main text-white font-medium hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-1"
+              >
+                {leaveRequestSending ? <Loader2 size={16} className="animate-spin" /> : null}
+                제출
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 연차 신청 취소 확인 모달 */}
+      {pendingCancelDateKey && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-sm w-full p-4 md:p-6 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-brand-dark mb-2">연차 신청 취소</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              {pendingCancelDateKey.slice(5).replace('-', '/')} 연차 신청을 취소하시겠습니까?
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingCancelDateKey(null)}
+                className="flex-1 py-2 px-4 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                아니오
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCancelLeave}
+                className="flex-1 py-2 px-4 rounded-lg bg-brand-main text-white font-medium hover:opacity-90"
+              >
+                예, 취소합니다
               </button>
             </div>
           </div>

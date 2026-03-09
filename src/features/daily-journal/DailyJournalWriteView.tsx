@@ -270,7 +270,7 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
           />
         </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">
           <section>
             <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2 mb-2">
               <Lightbulb size={18} className="text-brand-sub" />

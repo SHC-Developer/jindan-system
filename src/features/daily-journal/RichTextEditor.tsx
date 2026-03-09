@@ -81,7 +81,7 @@ export function RichTextEditor({
           onChange={(e) => setFontSizeInput(e.target.value)}
           onBlur={applyFontSize}
           onKeyDown={(e) => e.key === 'Enter' && applyFontSize()}
-          className="w-14 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-brand-sub"
+          className="w-14 min-w-[44px] md:min-w-0 px-2 py-2 md:py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-brand-sub"
         />
         <span className="text-xs text-gray-500">px</span>
       </div>
@@ -91,7 +91,7 @@ export function RichTextEditor({
           type="color"
           value={colorInput}
           onChange={(e) => applyColor(e.target.value)}
-          className="w-8 h-8 p-0.5 border border-gray-300 rounded cursor-pointer"
+          className="w-10 h-10 md:w-8 md:h-8 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 p-0.5 border border-gray-300 rounded cursor-pointer"
           title="텍스트 색상"
         />
       </div>
@@ -99,7 +99,7 @@ export function RichTextEditor({
       <button
         type="button"
         onClick={() => editor.chain().focus().toggleBold().run()}
-        className={`p-2 rounded hover:bg-gray-200 ${editor.isActive('bold') ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
+        className={`p-2 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center rounded hover:bg-gray-200 ${editor.isActive('bold') ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
         title="굵게"
       >
         <Bold size={18} />
@@ -107,7 +107,7 @@ export function RichTextEditor({
       <button
         type="button"
         onClick={() => editor.chain().focus().toggleItalic().run()}
-        className={`p-2 rounded hover:bg-gray-200 ${editor.isActive('italic') ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
+        className={`p-2 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center rounded hover:bg-gray-200 ${editor.isActive('italic') ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
         title="기울임"
       >
         <Italic size={18} />
@@ -115,7 +115,7 @@ export function RichTextEditor({
       <button
         type="button"
         onClick={() => editor.chain().focus().toggleUnderline().run()}
-        className={`p-2 rounded hover:bg-gray-200 ${editor.isActive('underline') ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
+        className={`p-2 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center rounded hover:bg-gray-200 ${editor.isActive('underline') ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
         title="밑줄"
       >
         <UnderlineIcon size={18} />
@@ -125,7 +125,7 @@ export function RichTextEditor({
       <button
         type="button"
         onClick={() => editor.chain().focus().setTextAlign('left').run()}
-        className={`p-2 rounded hover:bg-gray-200 ${editor.isActive({ textAlign: 'left' }) ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
+        className={`p-2 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center rounded hover:bg-gray-200 ${editor.isActive({ textAlign: 'left' }) ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
         title="왼쪽 정렬"
       >
         <AlignLeft size={18} />
@@ -133,7 +133,7 @@ export function RichTextEditor({
       <button
         type="button"
         onClick={() => editor.chain().focus().setTextAlign('center').run()}
-        className={`p-2 rounded hover:bg-gray-200 ${editor.isActive({ textAlign: 'center' }) ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
+        className={`p-2 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center rounded hover:bg-gray-200 ${editor.isActive({ textAlign: 'center' }) ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
         title="가운데 정렬"
       >
         <AlignCenter size={18} />
@@ -141,7 +141,7 @@ export function RichTextEditor({
       <button
         type="button"
         onClick={() => editor.chain().focus().setTextAlign('right').run()}
-        className={`p-2 rounded hover:bg-gray-200 ${editor.isActive({ textAlign: 'right' }) ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
+        className={`p-2 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center rounded hover:bg-gray-200 ${editor.isActive({ textAlign: 'right' }) ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
         title="오른쪽 정렬"
       >
         <AlignRight size={18} />
@@ -149,7 +149,7 @@ export function RichTextEditor({
       <button
         type="button"
         onClick={() => editor.chain().focus().setTextAlign('justify').run()}
-        className={`p-2 rounded hover:bg-gray-200 ${editor.isActive({ textAlign: 'justify' }) ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
+        className={`p-2 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center rounded hover:bg-gray-200 ${editor.isActive({ textAlign: 'justify' }) ? 'bg-brand-sub/20 text-brand-main' : 'text-gray-600'}`}
         title="양쪽 정렬"
       >
         <AlignJustify size={18} />

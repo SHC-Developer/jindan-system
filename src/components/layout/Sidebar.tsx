@@ -17,6 +17,7 @@ import {
   Loader2,
   X,
   User,
+  Users,
   ArrowLeftRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -46,6 +47,7 @@ export function Sidebar({
   onNavigateToDailyJournal,
   onNavigateToWorkLog,
   onNavigateToAdmin,
+  onNavigateToPersonnel,
   onCreateProject,
   onUpdateProjectName,
   onDeleteProject,
@@ -152,7 +154,7 @@ export function Sidebar({
         />
       )}
     <div className={`
-      w-64 bg-brand-dark text-gray-300 flex flex-col h-full flex-shrink-0
+      w-[85vw] max-w-64 md:w-64 bg-brand-dark text-gray-300 flex flex-col h-full flex-shrink-0
       fixed inset-y-0 left-0 z-50
       transform transition-transform duration-200 ease-in-out
       ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -349,7 +351,7 @@ export function Sidebar({
 
         {newProjectOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => !createLoading && setNewProjectOpen(false)}>
-            <div className="bg-brand-dark rounded-lg p-4 w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-brand-dark rounded-lg p-4 w-[90vw] max-w-80 shadow-xl" onClick={(e) => e.stopPropagation()}>
               <h3 className="text-sm font-semibold text-white mb-2">새 프로젝트</h3>
               <input
                 type="text"
@@ -448,6 +450,19 @@ export function Sidebar({
             >
               <Shield size={16} className="mr-2 opacity-80" />
               <span className="truncate">관리자 페이지</span>
+            </button>
+          )}
+          {canAccessAdmin(user) && onNavigateToPersonnel && (
+            <button
+              onClick={() => { onNavigateToPersonnel(); closeMobile(); }}
+              className={`w-full text-left px-2 py-1.5 rounded-md flex items-center text-sm transition-colors ${
+                activeSection === 'personnel'
+                  ? 'bg-brand-main text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+              }`}
+            >
+              <Users size={16} className="mr-2 opacity-80" />
+              <span className="truncate">인사기록카드</span>
             </button>
           )}
         </div>

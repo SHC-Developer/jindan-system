@@ -36,10 +36,10 @@ export function getDayOfWeekSeoul(ms: number): number {
   return d.getDay();
 }
 
-/** 서울 기준 해당 날짜 09:00 (오전) 의 ms. 출근 가능 시작 시각. */
-export function getNineAmSeoul(ms: number): number {
+/** 서울 기준 해당 날짜 05:00 (오전) 의 ms. 출근 가능 시작 시각. */
+export function getFiveAmSeoul(ms: number): number {
   const s = new Date(ms).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
-  const d = new Date(s + 'T09:00:00+09:00');
+  const d = new Date(s + 'T05:00:00+09:00');
   return d.getTime();
 }
 

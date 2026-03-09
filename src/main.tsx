@@ -75,6 +75,22 @@ createRoot(document.getElementById('root')!).render(
           }
         />
         <Route
+          path="/personnel"
+          element={
+            <ProtectedRoute>
+              <AppWithToast />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/personnel/:userId"
+          element={
+            <ProtectedRoute>
+              <AppWithToast />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/project/:projectNameEncoded"
           element={
             <ProtectedRoute>

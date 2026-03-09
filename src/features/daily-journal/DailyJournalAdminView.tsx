@@ -57,7 +57,7 @@ export function DailyJournalAdminView({ currentUser }: DailyJournalAdminViewProp
   if (viewingDateKey && journal) {
     return (
       <div className="w-full h-full overflow-auto bg-brand-light/30">
-        <div className="max-w-6xl mx-auto p-6">
+        <div className="max-w-6xl mx-auto p-3 md:p-6">
           <div className="flex items-center justify-between mb-4">
             <button
               type="button"
@@ -70,7 +70,7 @@ export function DailyJournalAdminView({ currentUser }: DailyJournalAdminViewProp
               {selectedEmployee?.displayName ?? selectedEmployee?.uid.slice(0, 8)} · {formatDateKeyLong(viewingDateKey)}
             </span>
           </div>
-          <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+          <div className="bg-white rounded-xl border border-gray-200 p-3 md:p-6 space-y-4 md:space-y-6">
             <section>
               <h2 className="text-sm font-semibold text-brand-dark mb-2">오늘의 주요 목표</h2>
               <ul className="space-y-2">
@@ -115,8 +115,8 @@ export function DailyJournalAdminView({ currentUser }: DailyJournalAdminViewProp
   if (selectedEmployee) {
     return (
       <div className="w-full h-full overflow-auto bg-brand-light/30">
-        <div className="max-w-6xl mx-auto p-6">
-          <div className="flex items-center justify-between mb-6">
+        <div className="max-w-6xl mx-auto p-3 md:p-6">
+          <div className="flex items-center justify-between mb-4 md:mb-6">
             <button
               type="button"
               onClick={handleBackToEmployeeList}
@@ -164,7 +164,7 @@ export function DailyJournalAdminView({ currentUser }: DailyJournalAdminViewProp
 
   return (
     <div className="w-full h-full overflow-auto bg-brand-light/30">
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-3 md:p-6">
         <h2 className="text-lg font-semibold text-brand-dark mb-3">업무일지를 확인할 직원을 선택하세요</h2>
         {usersLoading ? (
           <p className="text-sm text-gray-500 flex items-center gap-2">
@@ -175,13 +175,13 @@ export function DailyJournalAdminView({ currentUser }: DailyJournalAdminViewProp
         ) : users.length === 0 ? (
           <p className="text-sm text-gray-500">역할이 일반인 사용자가 없습니다.</p>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
             {users.map((u) => (
               <button
                 key={u.uid}
                 type="button"
                 onClick={() => setSelectedEmployee(u)}
-                className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 bg-white hover:border-brand-sub hover:bg-brand-sub/5 text-brand-dark transition-colors"
+                className="flex flex-col items-center gap-2 p-3 md:p-4 rounded-xl border-2 border-gray-200 bg-white hover:border-brand-sub hover:bg-brand-sub/5 text-brand-dark transition-colors"
               >
                 <span className="w-12 h-12 rounded-full bg-brand-light flex items-center justify-center text-brand-main">
                   <User size={24} />

@@ -29,7 +29,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-brand-light px-4 py-8">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-brand-light px-3 sm:px-4 py-6 sm:py-8">
       <div className="w-full max-w-sm flex flex-col items-center gap-8">
         <div className="flex flex-col items-center gap-2">
           <img src={LOGO_URL} alt="" className="w-12 h-12 rounded-xl object-contain" />

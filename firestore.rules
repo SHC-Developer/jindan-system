@@ -85,5 +85,10 @@ service cloud.firestore {
         }
       }
     }
+
+    // 인사기록카드: 관리자/specialist만 읽기·쓰기
+    match /personnelRecords/{userId} {
+      allow read, write: if request.auth != null && isAdminOrSpecialist();
+    }
   }
 }

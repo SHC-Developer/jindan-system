@@ -3,18 +3,44 @@ import { getUserLeaveDaysRef, getUserLeaveDayRef } from './firestore-paths';
 
 export type LeaveDayStatus = 'pending' | 'approved';
 
+export type LeaveDayType = 'annual' | 'morning_half' | 'afternoon_half';
+
 export interface LeaveDayItem {
   dateKey: string;
   status: LeaveDayStatus;
+  type: LeaveDayType;
+  reason: string;
+  deductDays: number;
 }
 
-/** 연차로 날짜 등록 (대기 상태). dateKey = 서울 기준 YYYY-MM-DD. 알림은 직원이 "연차 요청" 버튼을 눌렀을 때만 전송. */
-export async function addLeaveDay(userId: string, dateKey: string): Promise<void> {
+const DEDUCT_ANNUAL = 1;
+const DEDUCT_HALF = 0.5;
+
+/** 연차/반차 신청 (대기 상태). type에 따라 deductDays 1 또는 0.5. 알림은 직원이 제출 시 전송. */
+export async function addLeaveRequest(
+  userId: string,
+  dateKey: string,
+  type: LeaveDayType,
+  reason: string
+): Promise<void> {
   const ref = getUserLeaveDayRef(userId, dateKey);
-  await setDoc(ref, { dateKey, createdAt: Date.now(), status: 'pending' });
+  const deductDays = type === 'annual' ? DEDUCT_ANNUAL : DEDUCT_HALF;
+  await setDoc(ref, {
+    dateKey,
+    type,
+    reason: reason.trim() || '',
+    deductDays,
+    createdAt: Date.now(),
+    status: 'pending',
+  });
 }
 
-/** 연차 해제 (pending만 삭제 가능, approved는 규칙으로 차단) */
+/** @deprecated 새 연차/반차 신청은 addLeaveRequest 사용. 기존 캘린더 호환용. */
+export async function addLeaveDay(userId: string, dateKey: string): Promise<void> {
+  return addLeaveRequest(userId, dateKey, 'annual', '');
+}
+
+/** 연차 신청 취소 (pending만 삭제 가능, approved는 규칙으로 차단) */
 export async function removeLeaveDay(userId: string, dateKey: string): Promise<void> {
   const ref = getUserLeaveDayRef(userId, dateKey);
   await deleteDoc(ref);
@@ -42,7 +68,10 @@ export async function unapproveLeaveDay(userId: string, dateKey: string): Promis
 
 function docToItem(docId: string, data: Record<string, unknown>): LeaveDayItem {
   const status = (data.status === 'approved' ? 'approved' : 'pending') as LeaveDayStatus;
-  return { dateKey: docId, status };
+  const type = (data.type === 'morning_half' || data.type === 'afternoon_half' ? data.type : 'annual') as LeaveDayType;
+  const reason = typeof data.reason === 'string' ? data.reason : '';
+  const deductDays = typeof data.deductDays === 'number' ? data.deductDays : 1;
+  return { dateKey: docId, status, type, reason, deductDays };
 }
 
 /** 특정 사용자의 연차 목록 실시간 구독 (dateKey + status) */

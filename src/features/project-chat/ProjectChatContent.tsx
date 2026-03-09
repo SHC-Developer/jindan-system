@@ -9,6 +9,7 @@ import {
   Trash2,
   X,
   ArrowDown,
+  PanelRight,
 } from 'lucide-react';
 import { useChat } from '../../hooks/useChat';
 import { useChatSearch } from '../../hooks/useChatSearch';
@@ -34,6 +35,8 @@ interface ProjectChatContentProps {
   activeTab: 'chat' | 'automation';
   setActiveTab: (t: 'chat' | 'automation') => void;
   user: AppUser;
+  /** 모바일에서 우측 정보 패널 열기 (미전달 시 버튼 숨김) */
+  onOpenRightPanel?: () => void;
 }
 
 export function ProjectChatContent({
@@ -42,6 +45,7 @@ export function ProjectChatContent({
   activeTab,
   setActiveTab,
   user,
+  onOpenRightPanel,
 }: ProjectChatContentProps) {
   const { messages, sendMessage, sendFileMessage, deleteMessage, canDeleteMessage, loading, error, clearError, hasMore, loadMore } =
     useChat({
@@ -259,7 +263,7 @@ export function ProjectChatContent({
         onChange={handleFileInputChange}
       />
 
-      <header className="h-14 border-b border-gray-200 flex items-center justify-between px-4 bg-white flex-shrink-0">
+      <header className="h-14 border-b border-gray-200 flex items-center justify-between px-3 sm:px-4 bg-white flex-shrink-0">
         <div className="flex items-center min-w-0">
           <div className="flex items-center text-gray-500 text-sm mr-2">
             <span className="font-medium text-gray-900">{selectedProject.name}</span>
@@ -267,20 +271,32 @@ export function ProjectChatContent({
             <span className="font-medium text-brand-main">{selectedMenuData.name}</span>
           </div>
         </div>
-        <div className="flex items-center min-w-0 flex-1 justify-end ml-4 hidden md:flex">
-          <ChatSearchBar
+        <div className="flex items-center min-w-0 flex-1 justify-end ml-2 md:ml-4 gap-2">
+          {onOpenRightPanel && (
+            <button
+              type="button"
+              onClick={onOpenRightPanel}
+              className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 md:hidden"
+              aria-label="정보 패널 열기"
+            >
+              <PanelRight size={20} />
+            </button>
+          )}
+          <div className="hidden md:block flex-1 min-w-0 max-w-md">
+            <ChatSearchBar
             value={searchQuery}
             onChange={setSearchQuery}
             matchedCount={matchedIds.length}
             currentIndex={currentIndex}
             onPrev={handleSearchPrev}
             onNext={handleSearchNext}
-          />
+            />
+          </div>
         </div>
       </header>
 
-      <div className="px-6 pt-4 pb-0 bg-gray-50 border-b border-gray-200 flex-shrink-0">
-        <div className="flex space-x-6">
+      <div className="px-3 sm:px-6 pt-4 pb-0 bg-gray-50 border-b border-gray-200 flex-shrink-0 overflow-x-auto">
+        <div className="flex space-x-6 min-w-0 flex-shrink-0">
           <button
             onClick={() => setActiveTab('chat')}
             className={`pb-3 text-sm font-medium border-b-2 transition-colors ${
@@ -392,7 +408,7 @@ export function ProjectChatContent({
                               onAvatarClick={(url) => setExpandedProfileUrl(url !== null ? url : '')}
                             />
                           )}
-                          <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                          <div className={`max-w-[85%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
                             {!isMe && (
                               <div className="flex items-baseline mb-1">
                                 <span className="font-semibold text-sm text-gray-900 mr-2">{displayName}</span>

@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { useAllWorkLogs } from '../../hooks/useWorkLog';
 import { useUserList } from '../../hooks/useUserList';
 import { deleteWorkLog, clockOutWorkLog, endOvertime } from '../../lib/worklog';
-import { subscribeLeaveDays, approveLeaveDay, unapproveLeaveDay } from '../../lib/leaveDays';
+import { subscribeLeaveDays, approveLeaveDay, unapproveLeaveDay, type LeaveDayItem } from '../../lib/leaveDays';
 import { getHolidayDateKeys } from '../../lib/kr-holidays';
 import {
   toDateKeySeoul,
@@ -102,7 +102,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
   const [endDate, setEndDate] = useState(() => toDateKeySeoul(Date.now()));
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
-  const [leaveByUser, setLeaveByUser] = useState<Map<string, { dateKey: string; status: string }[]>>(new Map());
+  const [leaveByUser, setLeaveByUser] = useState<Map<string, LeaveDayItem[]>>(new Map());
   const [leaveApprovalLoading, setLeaveApprovalLoading] = useState<string | null>(null);
   const [holidayDateKeys, setHolidayDateKeys] = useState<Set<string>>(new Set());
   const databaseFilterRef = React.useRef<HTMLDivElement>(null);
@@ -202,7 +202,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
       await approveLeaveDay(userId, dateKey, currentUser.uid);
       setLeaveByUser((prev) => {
         const next = new Map(prev);
-        const list = next.get(userId)?.map((i) => (i.dateKey === dateKey ? { ...i, status: 'approved' } : i)) ?? [];
+        const list = next.get(userId)?.map((i) => (i.dateKey === dateKey ? { ...i, status: 'approved' as const } : i)) ?? [];
         next.set(userId, list);
         return next;
       });
@@ -406,17 +406,17 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
 
   return (
     <div className="w-full h-full overflow-auto bg-brand-light/30">
-      <div className="max-w-6xl mx-auto p-6 space-y-6">
+      <div className="max-w-6xl mx-auto p-3 md:p-6 space-y-4 md:space-y-6">
         <div className="flex items-center gap-2">
           <Clock size={24} className="text-brand-main" />
           <h1 className="text-xl font-semibold text-brand-dark">출퇴근 기록부</h1>
         </div>
 
-        <div className="flex flex-wrap gap-2 border-b border-gray-200">
+        <div className="flex flex-wrap gap-1 sm:gap-2 border-b border-gray-200">
           <button
             type="button"
             onClick={() => setActiveTab('today')}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-2 md:px-4 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-1.5 ${
               activeTab === 'today' ? 'bg-white border border-b-0 border-gray-200 text-brand-main' : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
@@ -426,7 +426,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
           <button
             type="button"
             onClick={() => setActiveTab('database')}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-2 md:px-4 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-1.5 ${
               activeTab === 'database' ? 'bg-white border border-b-0 border-gray-200 text-brand-main' : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
@@ -436,7 +436,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
           <button
             type="button"
             onClick={() => setActiveTab('leaveApproval')}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-1.5 ${
+            className={`px-3 py-2 md:px-4 text-sm font-medium rounded-t-lg transition-colors flex items-center gap-1.5 ${
               activeTab === 'leaveApproval' ? 'bg-white border border-b-0 border-gray-200 text-brand-main' : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
@@ -447,14 +447,14 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
 
         {activeTab === 'today' && (
           <section className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <h2 className="text-lg font-semibold text-brand-dark px-5 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-brand-dark px-3 md:px-5 py-4 border-b border-gray-200">
               오늘 출근 현황 ({todayKey})
             </h2>
-            <p className="text-sm text-gray-500 px-5 pb-3">
+            <p className="text-sm text-gray-500 px-3 md:px-5 pb-3">
               직원별 오늘 출근·연차·결근 상태를 한눈에 확인할 수 있습니다.
             </p>
             {allLoading || usersLoading ? (
-              <p className="px-5 pb-4 text-sm text-gray-500 flex items-center gap-2">
+              <p className="px-3 md:px-5 pb-4 text-sm text-gray-500 flex items-center gap-2">
                 <Loader2 size={14} className="animate-spin" /> 불러오는 중…
               </p>
             ) : (
@@ -512,7 +512,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
               </p>
             ) : (
               <>
-                <div className="flex flex-wrap items-center gap-4">
+                <div className="flex flex-wrap items-center gap-2 md:gap-4">
                   <div ref={databaseFilterRef} className="relative inline-flex items-center gap-2">
                     <span className="text-sm text-gray-700">담당자 (필터)</span>
                     <button
@@ -698,18 +698,18 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
 
         {activeTab === 'leaveApproval' && (
           <section className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <h2 className="text-lg font-semibold text-brand-dark px-5 py-4 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-brand-dark px-3 md:px-5 py-4 border-b border-gray-200">
               연차 사용 승인
             </h2>
-            <p className="text-sm text-gray-500 px-5 pb-3">
+            <p className="text-sm text-gray-500 px-3 md:px-5 pb-3">
               직원이 지정한 연차(대기)를 승인하면 캘린더에 고정되며, 직원이 해제할 수 없습니다.
             </p>
             {usersLoading ? (
-              <p className="px-5 pb-4 text-sm text-gray-500 flex items-center gap-2">
+              <p className="px-3 md:px-5 pb-4 text-sm text-gray-500 flex items-center gap-2">
                 <Loader2 size={14} className="animate-spin" /> 불러오는 중…
               </p>
             ) : Array.from(leaveByUser.entries()).flatMap(([, items]) => items).length === 0 ? (
-              <p className="px-5 py-8 text-center text-gray-500">등록된 연차가 없습니다.</p>
+              <p className="px-3 md:px-5 py-8 text-center text-gray-500">등록된 연차가 없습니다.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
@@ -717,6 +717,9 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                     <tr className="bg-gray-50 border-b border-gray-200">
                       <th className="text-left py-3 px-4 font-medium text-gray-700">직원</th>
                       <th className="text-left py-3 px-4 font-medium text-gray-700">연차 일자</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">유형</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700">사유</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-700">차감일수</th>
                       <th className="text-center py-3 px-4 font-medium text-gray-700">상태</th>
                       <th className="text-center py-3 px-4 font-medium text-gray-700 min-w-[5.5rem]">연차승인 / 승인취소</th>
                     </tr>
@@ -727,10 +730,17 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                         const key = `${uid}:${item.dateKey}`;
                         const displayName = users.find((u) => u.uid === uid)?.displayName ?? uid.slice(0, 8);
                         const isApproved = item.status === 'approved';
+                        const typeLabel =
+                          item.type === 'morning_half' ? '오전반차' : item.type === 'afternoon_half' ? '오후반차' : '연차';
                         return (
                           <tr key={key} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50">
                             <td className="py-3 px-4 font-medium text-gray-800">{displayName}</td>
                             <td className="py-3 px-4 text-gray-700">{formatDateKeyDisplay(item.dateKey)}</td>
+                            <td className="py-3 px-4 text-gray-700">{typeLabel}</td>
+                            <td className="py-3 px-4 text-gray-600 max-w-[200px] truncate" title={item.reason || undefined}>
+                              {item.reason || '-'}
+                            </td>
+                            <td className="py-3 px-4 text-center text-gray-700">{item.deductDays}일</td>
                             <td className="py-3 px-4 text-center">
                               <span
                                 className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${

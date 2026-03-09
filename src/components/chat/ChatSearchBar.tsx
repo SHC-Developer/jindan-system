@@ -22,7 +22,7 @@ export function ChatSearchBar({
   const showNav = value.trim() && hasMatches;
 
   return (
-    <div className="flex items-center gap-2 w-full max-w-md">
+    <div className="flex items-center gap-2 w-full max-w-md min-w-0">
       <div className="relative flex-1 min-w-0">
         <Search size={16} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
         <input

@@ -16,7 +16,7 @@ function ToastItemView({
 }) {
   return (
     <div
-      className="rounded-xl shadow-lg border border-gray-200 bg-white p-4 min-w-[280px] max-w-[360px] cursor-pointer hover:bg-gray-50 border-l-4 border-l-brand-main"
+      className="rounded-xl shadow-lg border border-gray-200 bg-white p-4 w-[calc(100vw-2rem)] min-w-0 max-w-[360px] sm:min-w-[280px] cursor-pointer hover:bg-gray-50 border-l-4 border-l-brand-main"
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -85,7 +85,7 @@ export function NotificationToastContainer() {
 
   return (
     <div
-      className="fixed bottom-6 right-6 z-50 flex flex-col-reverse gap-3 items-end pointer-events-none"
+      className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 flex flex-col-reverse gap-3 items-end pointer-events-none"
       aria-live="polite"
     >
       <div className="flex flex-col-reverse gap-3 items-end pointer-events-auto">

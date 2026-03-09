@@ -353,13 +353,13 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
     <div className="w-full h-full flex flex-col overflow-hidden bg-brand-light/30">
       <div className="max-w-6xl mx-auto w-full h-full flex flex-col min-h-0 overflow-hidden">
         {/* 상단: 대시보드 / 업무 데이터베이스 — 하단 콘텐츠와 동일한 패딩으로 너비 통일 */}
-        <div className="flex-shrink-0 px-6 pt-6">
-          <div className="flex items-center justify-between py-4 px-4 bg-white border border-gray-200 rounded-t-xl">
-            <div className="flex gap-2">
+        <div className="flex-shrink-0 px-3 md:px-6 pt-3 md:pt-6">
+          <div className="flex items-center justify-between py-3 md:py-4 px-3 md:px-4 bg-white border border-gray-200 rounded-t-xl">
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setActiveTab('dashboard')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg text-sm font-medium ${
                   activeTab === 'dashboard'
                     ? 'bg-brand-main text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -371,7 +371,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
               <button
                 type="button"
                 onClick={() => setActiveTab('database')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                className={`flex items-center gap-2 px-3 md:px-4 py-2 rounded-lg text-sm font-medium ${
                   activeTab === 'database'
                     ? 'bg-brand-main text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -384,7 +384,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
           </div>
         </div>
 
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-3 md:p-6">
         {activeTab === 'database' ? (
           /* 업무 데이터베이스: 승인된 업무만 */
           <section>

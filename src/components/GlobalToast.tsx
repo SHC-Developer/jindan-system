@@ -17,7 +17,7 @@ export function GlobalToastContainer() {
   const globalToasts = toasts.filter((t) => t.variant && t.variant !== 'info');
 
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm pointer-events-none">
+    <div className="fixed top-4 right-2 left-2 sm:right-4 sm:left-auto z-[100] flex flex-col gap-2 max-w-sm pointer-events-none">
       {globalToasts.map((toast) => {
         const variant = toast.variant ?? 'info';
         const style = VARIANT_STYLES[variant];

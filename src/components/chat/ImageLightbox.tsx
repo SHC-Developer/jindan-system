@@ -12,7 +12,7 @@ interface ImageLightboxProps {
 export function ImageLightbox({ imageUrl, onClose, alt = '이미지', fixedSize }: ImageLightboxProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -21,20 +21,19 @@ export function ImageLightbox({ imageUrl, onClose, alt = '이미지', fixedSize 
       <button
         type="button"
         onClick={onClose}
-        className="absolute top-4 right-4 p-2 rounded-full bg-white/90 text-gray-700 hover:bg-white z-10"
+        className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 rounded-full bg-white/90 text-gray-700 hover:bg-white z-10 min-w-[44px] min-h-[44px] flex items-center justify-center"
         aria-label="닫기"
       >
         <X size={24} />
       </button>
       <div
-        className="flex items-center justify-center rounded-lg shadow-2xl bg-white overflow-hidden"
-        style={fixedSize ? { width: fixedSize.width, height: fixedSize.height } : undefined}
+        className={`flex items-center justify-center rounded-lg shadow-2xl bg-white overflow-hidden max-w-[90vw] max-h-[85vh] ${fixedSize ? 'w-[90vw] h-[85vh] md:w-[375px] md:h-[375px]' : 'w-full'}`}
         onClick={(e) => e.stopPropagation()}
       >
         <img
           src={imageUrl}
           alt={alt}
-          className={fixedSize ? 'w-full h-full object-contain' : 'max-w-full max-h-[90vh] object-contain rounded-lg'}
+          className={fixedSize ? 'w-full h-full object-contain' : 'max-w-full max-h-[85vh] object-contain rounded-lg'}
           loading="lazy"
         />
       </div>
@@ -47,11 +46,11 @@ interface ProfileNoPhotoModalProps {
   size?: number;
 }
 
-/** 프로필 사진이 없을 때 클릭 시 표시하는 모달 (375x375 등 고정 크기) */
+/** 프로필 사진이 없을 때 클릭 시 표시하는 모달 (반응형: 모바일 90vw, 데스크톱 size) */
 export function ProfileNoPhotoModal({ onClose, size = 375 }: ProfileNoPhotoModalProps) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -60,14 +59,13 @@ export function ProfileNoPhotoModal({ onClose, size = 375 }: ProfileNoPhotoModal
       <button
         type="button"
         onClick={onClose}
-        className="absolute top-4 right-4 p-2 rounded-full bg-white/90 text-gray-700 hover:bg-white z-10"
+        className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 rounded-full bg-white/90 text-gray-700 hover:bg-white z-10 min-w-[44px] min-h-[44px] flex items-center justify-center"
         aria-label="닫기"
       >
         <X size={24} />
       </button>
       <div
-        className="flex flex-col items-center justify-center gap-3 rounded-lg shadow-2xl bg-white text-gray-500"
-        style={{ width: size, height: size }}
+        className="flex flex-col items-center justify-center gap-3 rounded-lg shadow-2xl bg-white text-gray-500 w-[90vw] max-w-[375px] min-h-[200px] max-h-[85vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <User size={80} className="text-gray-300" />

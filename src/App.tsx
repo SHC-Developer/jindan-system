@@ -25,6 +25,8 @@ const DailyJournalAdminView = React.lazy(() => import('./features/daily-journal/
 const ProjectChatContent = React.lazy(() => import('./features/project-chat/ProjectChatContent').then(m => ({ default: m.ProjectChatContent })));
 const GeneralChatPage = React.lazy(() => import('./features/general-chat/GeneralChatPage').then(m => ({ default: m.GeneralChatPage })));
 const CadChatPage = React.lazy(() => import('./features/cad-chat/CadChatPage').then(m => ({ default: m.CadChatPage })));
+const PersonnelListPage = React.lazy(() => import('./features/personnel/PersonnelListPage').then(m => ({ default: m.PersonnelListPage })));
+const PersonnelDetailPage = React.lazy(() => import('./features/personnel/PersonnelDetailPage').then(m => ({ default: m.PersonnelDetailPage })));
 
 function PageFallback() {
   return (
@@ -104,6 +106,10 @@ function buildSidebarProps(
       navigate('/admin');
       setActiveSection('admin-page');
     },
+    onNavigateToPersonnel: () => {
+      navigate('/personnel');
+      setActiveSection('personnel');
+    },
     onCreateProject,
     onUpdateProjectName,
     onDeleteProject,
@@ -129,6 +135,7 @@ export default function App() {
   const [selectedMenuId, setSelectedMenuId] = useState<MiddleMenuId>('field-survey');
   const [activeTab, setActiveTab] = useState<'chat' | 'automation'>('chat');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<ActiveSection>('general-chat');
   const [isProjectsExpanded, setIsProjectsExpanded] = useState(true);
   const [specialistViewMode, setSpecialistViewMode] = useState<SpecialistViewMode>('admin');
@@ -165,6 +172,14 @@ export default function App() {
     if (path === '/admin') {
       if (user && canAccessAdmin(user)) {
         setActiveSection('admin-page');
+      } else {
+        navigate('/general-chat', { replace: true });
+      }
+      return;
+    }
+    if (path === '/personnel' || path.startsWith('/personnel/')) {
+      if (user && canAccessAdmin(user)) {
+        setActiveSection('personnel');
       } else {
         navigate('/general-chat', { replace: true });
       }
@@ -264,6 +279,14 @@ export default function App() {
     )
   ) : activeSection === 'admin-page' ? (
     canAccessAdmin(user) ? <AdminPage /> : null
+  ) : activeSection === 'personnel' ? (
+    (() => {
+      const personnelUserId = location.pathname.match(/^\/personnel\/([^/]+)$/)?.[1] ?? null;
+      if (personnelUserId) {
+        return <PersonnelDetailPage userId={personnelUserId} currentUser={user} onBack={() => navigate('/personnel')} />;
+      }
+      return canAccessAdmin(user) ? <PersonnelListPage currentUser={user} /> : null;
+    })()
   ) : activeSection === 'general-chat' || activeSection === 'cad' ? null : activeSection === 'project' && selectedProject ? (
     <>
       <ProjectChatContent
@@ -272,8 +295,13 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         user={user}
+        onOpenRightPanel={() => setRightPanelOpen(true)}
       />
-      <RightPanel selectedMenuData={selectedMenuData} />
+      <RightPanel
+        selectedMenuData={selectedMenuData}
+        isOpen={rightPanelOpen}
+        onClose={() => setRightPanelOpen(false)}
+      />
     </>
   ) : (
     <div className="flex flex-1 items-center justify-center text-gray-500 text-sm">
@@ -327,11 +355,11 @@ export default function App() {
       <GlobalToastContainer />
         <Sidebar {...sidebarProps} />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden w-full">
-        <div className="h-12 flex items-center px-3 border-b border-gray-200 bg-white flex-shrink-0 md:hidden">
+        <div className="h-12 flex items-center px-3 sm:px-4 border-b border-gray-200 bg-white flex-shrink-0 md:hidden">
           <button
             type="button"
             onClick={() => setIsMobileSidebarOpen(true)}
-            className="p-1.5 -ml-1 rounded-md text-gray-600 hover:bg-gray-100"
+            className="p-2 -ml-1 rounded-md text-gray-600 hover:bg-gray-100 min-w-[44px] min-h-[44px] flex items-center justify-center md:min-w-0 md:min-h-0 md:p-1.5"
             aria-label="메뉴 열기"
           >
             <Menu size={22} />
@@ -340,7 +368,7 @@ export default function App() {
         </div>
         <div className="flex flex-1 min-w-0 overflow-hidden w-full">
           <Suspense fallback={<PageFallback />}>
-            {isTaskDetailPage || activeSection === 'work-assign' || activeSection === 'worklog' || activeSection === 'daily-journal' || activeSection === 'admin-page' ? (
+            {isTaskDetailPage || activeSection === 'work-assign' || activeSection === 'worklog' || activeSection === 'daily-journal' || activeSection === 'admin-page' || activeSection === 'personnel' ? (
               <div className="w-full h-full min-h-0 min-w-0 overflow-hidden">{mainContent}</div>
             ) : (
               mainContent

@@ -290,7 +290,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
             <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileInputChange} />
             <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileInputChange} />
 
-            <header className="h-14 border-b border-gray-200 flex items-center justify-between px-4 bg-white flex-shrink-0">
+            <header className="h-14 border-b border-gray-200 flex items-center justify-between px-3 sm:px-4 bg-white flex-shrink-0">
               <div className="flex items-center min-w-0">
                 {sidebarProps.onOpenMobile && (
                   <button
@@ -316,7 +316,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
               </div>
             </header>
 
-            <div className="px-6 pt-4 pb-0 bg-gray-50 border-b border-gray-200 flex-shrink-0">
+            <div className="px-3 sm:px-6 pt-4 pb-0 bg-gray-50 border-b border-gray-200 flex-shrink-0">
               <span className="pb-3 text-sm font-medium border-b-2 border-brand-main text-brand-main inline-block">채팅</span>
             </div>
 
@@ -405,7 +405,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
                                   onAvatarClick={(url) => setExpandedProfileUrl(url !== null ? url : '')}
                                 />
                               )}
-                              <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                              <div className={`max-w-[85%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
                                 {!isMe && (
                                   <div className="flex items-baseline mb-1">
                                     <span className="font-semibold text-sm text-gray-900 mr-2">{displayName}</span>
@@ -477,7 +477,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
                                   onAvatarClick={(url) => setExpandedProfileUrl(url !== null ? url : '')}
                                 />
                               )}
-                              <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
+                              <div className={`max-w-[85%] md:max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
                                 {!isMe && (
                                   <div className="flex items-baseline mb-1">
                                     <span className="font-semibold text-sm text-gray-900 mr-2">{displayName}</span>
@@ -550,7 +550,7 @@ export function CadChatPage({ user, sidebarProps, onLogout }: CadChatPageProps) 
               />
             )}
 
-            <div className="p-4 bg-white border-t border-gray-200 flex-shrink-0">
+            <div className="p-3 sm:p-4 bg-white border-t border-gray-200 flex-shrink-0">
               {toastMessage && (
                 <div className="mb-2 px-3 py-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-lg">
                   {toastMessage}
