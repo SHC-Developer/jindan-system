@@ -1,8 +1,11 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import { getAuth, type Auth } from 'firebase/auth';
 import { getFirestore, enableIndexedDbPersistence, type Firestore } from 'firebase/firestore';
+import { getFunctions, type Functions } from 'firebase/functions';
 import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import type { UserRole } from '../types/user';
+
+const FUNCTIONS_REGION = 'asia-northeast3';
 
 // 이 프로젝트는 Storage 버킷이 firebasestorage.app 하나뿐임. appspot.com은 없어서 CORS 오류 방지용 치환.
 const rawBucket = import.meta.env.VITE_FIREBASE_STORAGE_BUCKET ?? '';
@@ -23,6 +26,7 @@ const firebaseConfig = {
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
+let functions: Functions | undefined;
 let storage: FirebaseStorage | undefined;
 
 function initFirebase(): void {
@@ -33,6 +37,7 @@ function initFirebase(): void {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   db = getFirestore(app);
+  functions = getFunctions(app, FUNCTIONS_REGION);
   storage = getStorage(app);
   enableIndexedDbPersistence(db).catch((err: unknown) => {
     const code = err && typeof err === 'object' && 'code' in err ? (err as { code: string }).code : '';
@@ -49,6 +54,11 @@ export function getAuthInstance(): Auth {
 export function getDbInstance(): Firestore {
   if (!db) initFirebase();
   return db!;
+}
+
+export function getFunctionsInstance(): Functions {
+  if (!functions) initFirebase();
+  return functions!;
 }
 
 export function getStorageInstance(): FirebaseStorage {

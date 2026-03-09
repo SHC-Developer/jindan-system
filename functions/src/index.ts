@@ -1,22 +1,9 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { onRequest } from 'firebase-functions/v2/https';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const ALLOWED_OFFICE_IPS = ['211.170.156.173'];
-
-/**
- * IP 체크 테스트용 HTTP Function.
- * 호출자의 공인 IP를 반환하고, 사무실 IP 목록과 비교 결과를 반환한다.
- */
-export const checkOfficeIp = onRequest({ cors: true, region: 'asia-northeast3' }, (req, res) => {
-  const forwarded = req.headers['x-forwarded-for'];
-  const clientIp = forwarded
-    ? String(forwarded).split(',')[0].trim()
-    : req.ip ?? '';
-  const allowed = ALLOWED_OFFICE_IPS.includes(clientIp);
-  res.json({ ip: clientIp, allowed });
-});
 
 initializeApp();
 
@@ -43,6 +30,196 @@ async function getHolidayDateKeys(year: number): Promise<Set<string>> {
   }
   return set;
 }
+
+function getClientIp(request: { rawRequest?: { headers?: Record<string, string | string[] | undefined>; ip?: string } }): string {
+  const raw = request.rawRequest;
+  if (!raw) return '';
+  const forwarded = raw.headers?.['x-forwarded-for'];
+  if (forwarded) {
+    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
+    return String(first).split(',')[0].trim();
+  }
+  return raw.ip ?? '';
+}
+
+/**
+ * 직원 출퇴근 액션 (사무실 IP에서만 허용). Callable.
+ */
+export const workLogAction = onCall(
+  { region: 'asia-northeast3' },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
+    }
+    const clientIp = getClientIp(request);
+    if (!ALLOWED_OFFICE_IPS.includes(clientIp)) {
+      throw new HttpsError(
+        'failed-precondition',
+        '사무실 네트워크에서만 출퇴근 기록을 할 수 있습니다.'
+      );
+    }
+
+    const db = getFirestore();
+    const uid = request.auth.uid;
+    const { action, ...params } = request.data as { action: string; [k: string]: unknown };
+
+    switch (action) {
+      case 'createWorkLog': {
+        const userId = params.userId as string;
+        const userDisplayName = (params.userDisplayName as string | null) ?? null;
+        const tardinessReason = (params.tardinessReason as string | null) ?? null;
+        if (userId !== uid) throw new HttpsError('permission-denied', '본인만 출근할 수 있습니다.');
+        const now = Date.now();
+        const todayKey = getTodayKeySeoul(new Date(now));
+        const todayStart = new Date(todayKey + 'T00:00:00+09:00').getTime();
+        const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+        const existing = await db.collection('workLogs')
+          .where('userId', '==', userId)
+          .where('clockInAt', '>=', todayStart)
+          .where('clockInAt', '<', todayEnd)
+          .limit(1)
+          .get();
+        if (!existing.empty) {
+          const status = existing.docs[0].data().status;
+          if (status !== 'absent') {
+            throw new HttpsError('failed-precondition', '오늘은 이미 출근 기록이 있습니다.');
+          }
+        }
+        const docRef = await db.collection('workLogs').add({
+          userId,
+          userDisplayName,
+          clockInAt: now,
+          clockOutAt: null,
+          status: 'approved',
+          approvedBy: null,
+          approvedAt: null,
+          tardinessReason,
+          overtimeStartAt: null,
+          overtimeEndAt: null,
+          overtimeReason: null,
+        });
+        return { id: docRef.id };
+      }
+
+      case 'updateWorkLogToClockIn': {
+        const logId = params.logId as string;
+        const clockInAtMs = params.clockInAtMs as number;
+        const tardinessReason = (params.tardinessReason as string | null) ?? null;
+        const expectedUserId = params.expectedUserId as string | undefined;
+        const ref = db.collection('workLogs').doc(logId);
+        const docSnap = await ref.get();
+        if (!docSnap.exists) throw new HttpsError('not-found', '해당 출퇴근 기록을 찾을 수 없습니다.');
+        const data = docSnap.data();
+        if (expectedUserId != null && data?.userId !== expectedUserId) {
+          throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
+        }
+        if (data?.userId !== uid) throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
+        await ref.update({
+          clockInAt: clockInAtMs,
+          status: 'approved',
+          approvedBy: null,
+          approvedAt: null,
+          tardinessReason,
+        });
+        return {};
+      }
+
+      case 'clockOutWorkLog': {
+        const logId = params.logId as string;
+        const clockOutAtMs = (params.clockOutAtMs as number) ?? Date.now();
+        const ref = db.collection('workLogs').doc(logId);
+        const docSnap = await ref.get();
+        if (!docSnap.exists) throw new HttpsError('not-found', '해당 출퇴근 기록을 찾을 수 없습니다.');
+        if (docSnap.data()?.userId !== uid) {
+          throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
+        }
+        await ref.update({ clockOutAt: clockOutAtMs });
+        return {};
+      }
+
+      case 'startOvertime': {
+        const logId = params.logId as string;
+        const overtimeReason = (params.overtimeReason as string | null) ?? null;
+        const ref = db.collection('workLogs').doc(logId);
+        const docSnap = await ref.get();
+        if (!docSnap.exists) throw new HttpsError('not-found', '해당 출퇴근 기록을 찾을 수 없습니다.');
+        if (docSnap.data()?.userId !== uid) {
+          throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
+        }
+        await ref.update({
+          overtimeStartAt: Date.now(),
+          overtimeReason,
+        });
+        return {};
+      }
+
+      case 'endOvertime': {
+        const logId = params.logId as string;
+        const endAtMs = (params.endAtMs as number) ?? Date.now();
+        const ref = db.collection('workLogs').doc(logId);
+        const docSnap = await ref.get();
+        if (!docSnap.exists) throw new HttpsError('not-found', '해당 출퇴근 기록을 찾을 수 없습니다.');
+        if (docSnap.data()?.userId !== uid) {
+          throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
+        }
+        await ref.update({ overtimeEndAt: endAtMs });
+        return {};
+      }
+
+      case 'createOvertimeOnlyWorkLog': {
+        const userId = params.userId as string;
+        const userDisplayName = (params.userDisplayName as string | null) ?? null;
+        const overtimeReason = (params.overtimeReason as string) ?? '';
+        if (userId !== uid) throw new HttpsError('permission-denied', '본인만 기록할 수 있습니다.');
+        const now = Date.now();
+        const docRef = await db.collection('workLogs').add({
+          userId,
+          userDisplayName,
+          clockInAt: now,
+          clockOutAt: now,
+          status: 'approved',
+          approvedBy: null,
+          approvedAt: null,
+          tardinessReason: null,
+          overtimeStartAt: now,
+          overtimeEndAt: null,
+          overtimeReason,
+        });
+        return { id: docRef.id };
+      }
+
+      case 'updateAbsentToOvertime': {
+        const logId = params.logId as string;
+        const overtimeReason = (params.overtimeReason as string) ?? '';
+        const expectedUserId = params.expectedUserId as string | undefined;
+        const ref = db.collection('workLogs').doc(logId);
+        const docSnap = await ref.get();
+        if (!docSnap.exists) throw new HttpsError('not-found', '해당 출퇴근 기록을 찾을 수 없습니다.');
+        const data = docSnap.data();
+        if (expectedUserId != null && data?.userId !== expectedUserId) {
+          throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
+        }
+        if (data?.userId !== uid) throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
+        const now = Date.now();
+        await ref.update({
+          clockInAt: now,
+          clockOutAt: now,
+          status: 'approved',
+          approvedBy: null,
+          approvedAt: null,
+          tardinessReason: null,
+          overtimeStartAt: now,
+          overtimeEndAt: null,
+          overtimeReason,
+        });
+        return {};
+      }
+
+      default:
+        throw new HttpsError('invalid-argument', '알 수 없는 액션입니다.');
+    }
+  }
+);
 
 /**
  * 매일 00:00(서울)에 실행. 당일이 평일·비공휴일이면,

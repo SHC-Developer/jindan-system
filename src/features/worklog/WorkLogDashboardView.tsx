@@ -9,7 +9,7 @@ import {
   endOvertime,
   createOvertimeOnlyWorkLog,
   updateAbsentToOvertime,
-} from '../../lib/worklog';
+} from '../../lib/worklogSecure';
 import { addLeaveRequest, removeLeaveDay, type LeaveDayType } from '../../lib/leaveDays';
 import { notifyAdmins } from '../../lib/notifications';
 import {
