@@ -150,10 +150,12 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
   useEffect(() => {
     const close = (e: MouseEvent) => {
       const target = e.target as Node;
+      const insideDashboardTrigger =
+        dashboardFilterRef.current?.contains(target) || dashboardFilterMobileRef.current?.contains(target);
       if (
         dashboardFilterOpen &&
-        dashboardFilterRef.current && !dashboardFilterRef.current.contains(target) &&
-        dashboardFilterDropdownRef.current && !dashboardFilterDropdownRef.current.contains(target)
+        dashboardFilterDropdownRef.current && !dashboardFilterDropdownRef.current.contains(target) &&
+        !insideDashboardTrigger
       ) setDashboardFilterOpen(false);
       if (
         databaseFilterOpen &&
