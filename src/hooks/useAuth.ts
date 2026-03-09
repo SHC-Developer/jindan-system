@@ -10,7 +10,7 @@ interface UseAuthResult {
   user: AppUser | null;
   loading: boolean;
   error: string | null;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: (rememberMe?: boolean) => Promise<void>;
   signOut: () => Promise<void>;
   clearError: () => void;
   updateProfilePhotoUrl: (url: string | null) => void;
@@ -71,10 +71,10 @@ export function useAuth(): UseAuthResult {
     }
   }, []);
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithGoogle = useCallback(async (rememberMe = true) => {
     setError(null);
     try {
-      const appUser = await authSignInWithGoogle();
+      const appUser = await authSignInWithGoogle(rememberMe);
       setUser(appUser);
     } catch (e) {
       const message = e instanceof Error ? e.message : '로그인에 실패했습니다.';

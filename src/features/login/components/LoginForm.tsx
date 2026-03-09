@@ -1,18 +1,19 @@
 import React, { useState } from 'react';
 
 interface LoginFormProps {
-  onGoogleSignIn: () => Promise<void>;
+  onGoogleSignIn: (rememberMe: boolean) => Promise<void>;
   error: string | null;
   onDismissError: () => void;
 }
 
 export function LoginForm({ onGoogleSignIn, error, onDismissError }: LoginFormProps) {
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      await onGoogleSignIn();
+      await onGoogleSignIn(rememberMe);
     } finally {
       setLoading(false);
     }
@@ -36,6 +37,16 @@ export function LoginForm({ onGoogleSignIn, error, onDismissError }: LoginFormPr
           </button>
         </div>
       )}
+
+      <label className="flex items-center gap-2 cursor-pointer select-none self-center">
+        <input
+          type="checkbox"
+          checked={rememberMe}
+          onChange={(e) => setRememberMe(e.target.checked)}
+          className="w-4 h-4 rounded border-gray-300 text-brand-main focus:ring-brand-sub accent-brand-main"
+        />
+        <span className="text-sm text-gray-600">자동 로그인</span>
+      </label>
 
       <button
         type="button"

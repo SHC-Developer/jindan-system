@@ -39,7 +39,7 @@ export function LoginPage() {
           <p className="text-sm text-gray-500">구글로 로그인하세요.</p>
         </div>
         <LoginForm
-          onGoogleSignIn={signInWithGoogle}
+          onGoogleSignIn={(rememberMe) => signInWithGoogle(rememberMe)}
           error={error}
           onDismissError={clearError}
         />

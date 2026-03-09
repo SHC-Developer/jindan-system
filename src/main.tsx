@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import App from './App.tsx';
 import { LoginPage } from './features/login/LoginPage';
+import { IpTestPage } from './features/ip-test/IpTestPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ToastProvider } from './contexts/ToastContext';
 import './index.css';
@@ -18,6 +19,7 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/ip-test" element={<IpTestPage />} />
         <Route
           path="/"
           element={

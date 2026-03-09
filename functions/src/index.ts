@@ -1,6 +1,22 @@
 import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { onRequest } from 'firebase-functions/v2/https';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
+
+const ALLOWED_OFFICE_IPS = ['211.170.156.173'];
+
+/**
+ * IP 체크 테스트용 HTTP Function.
+ * 호출자의 공인 IP를 반환하고, 사무실 IP 목록과 비교 결과를 반환한다.
+ */
+export const checkOfficeIp = onRequest({ cors: true, region: 'asia-northeast3' }, (req, res) => {
+  const forwarded = req.headers['x-forwarded-for'];
+  const clientIp = forwarded
+    ? String(forwarded).split(',')[0].trim()
+    : req.ip ?? '';
+  const allowed = ALLOWED_OFFICE_IPS.includes(clientIp);
+  res.json({ ip: clientIp, allowed });
+});
 
 initializeApp();
 

@@ -3,6 +3,9 @@ import {
   GoogleAuthProvider,
   signOut as firebaseSignOut,
   updateProfile,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
   type User as FirebaseUser,
 } from 'firebase/auth';
 import { doc, getDoc, getDocFromServer, onSnapshot, updateDoc } from 'firebase/firestore';
@@ -83,8 +86,9 @@ export function subscribeAppUser(
   );
 }
 
-export async function signInWithGoogle(): Promise<AppUser> {
+export async function signInWithGoogle(rememberMe = true): Promise<AppUser> {
   const auth = getAuthInstance();
+  await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
   const provider = new GoogleAuthProvider();
   const userCredential = await signInWithPopup(auth, provider);
   return fetchAppUser(userCredential.user);
