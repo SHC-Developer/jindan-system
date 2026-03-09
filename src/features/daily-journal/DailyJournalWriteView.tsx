@@ -35,6 +35,8 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
   const todayKey = toDateKeySeoul(Date.now());
   const [viewMode, setViewMode] = useState<ViewMode>('write');
   const [editingDateKey, setEditingDateKey] = useState<string>(todayKey);
+  /** 당일만 수정 가능, 지난 날짜는 읽기 전용 */
+  const isEditingToday = editingDateKey === todayKey;
   const [goals, setGoals] = useState<DailyJournalGoal[]>(() => createEmptyGoals(DEFAULT_GOAL_COUNT));
   const [detailContent, setDetailContent] = useState('');
   const [tomorrowPlan, setTomorrowPlan] = useState('');
@@ -209,6 +211,9 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
           <span className="text-2xl font-bold text-brand-dark">
             {formatDateKeyLong(editingDateKey)}
           </span>
+          {!isEditingToday && (
+            <p className="text-sm text-amber-600 mt-1">지난 날짜는 수정할 수 없습니다.</p>
+          )}
         </section>
 
         <section className="mb-6">
@@ -217,25 +222,27 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
               <ListChecks size={18} className="text-brand-sub" />
               오늘의 주요 목표
             </h2>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={removeGoal}
-                disabled={goals.length === 0}
-                className="p-2 rounded-lg border border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
-                title="목표 삭제"
-              >
-                <Minus size={20} />
-              </button>
-              <button
-                type="button"
-                onClick={addGoal}
-                className="p-2 rounded-lg border border-brand-sub bg-brand-sub/10 text-brand-main hover:bg-brand-sub/20"
-                title="목표 추가"
-              >
-                <Plus size={20} />
-              </button>
-            </div>
+            {isEditingToday && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={removeGoal}
+                  disabled={goals.length === 0}
+                  className="p-2 rounded-lg border border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="목표 삭제"
+                >
+                  <Minus size={20} />
+                </button>
+                <button
+                  type="button"
+                  onClick={addGoal}
+                  className="p-2 rounded-lg border border-brand-sub bg-brand-sub/10 text-brand-main hover:bg-brand-sub/20"
+                  title="목표 추가"
+                >
+                  <Plus size={20} />
+                </button>
+              </div>
+            )}
           </div>
           <ul className="space-y-2">
             {goals.map((goal, i) => (
@@ -244,14 +251,16 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
                   type="checkbox"
                   checked={goal.checked}
                   onChange={(e) => updateGoal(i, { checked: e.target.checked })}
-                  className="w-5 h-5 rounded border-gray-300 text-brand-main focus:ring-brand-main"
+                  disabled={!isEditingToday}
+                  className="w-5 h-5 rounded border-gray-300 text-brand-main focus:ring-brand-main disabled:opacity-60"
                 />
                 <input
                   type="text"
                   value={goal.text}
                   onChange={(e) => updateGoal(i, { text: e.target.value })}
                   placeholder={i >= DEFAULT_GOAL_COUNT - 1 && !goal.text ? '새로운 목표를 입력하세요...' : ''}
-                  className={`flex-1 px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub ${goal.checked ? 'line-through text-gray-500' : ''}`}
+                  disabled={!isEditingToday}
+                  className={`flex-1 px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub disabled:bg-gray-50 disabled:cursor-not-allowed ${goal.checked ? 'line-through text-gray-500' : ''}`}
                 />
               </li>
             ))}
@@ -266,6 +275,7 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
           <RichTextEditor
             value={detailContent}
             onChange={setDetailContent}
+            readOnly={!isEditingToday}
             className="min-h-[200px]"
           />
         </section>
@@ -281,7 +291,8 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
               onChange={(e) => setTomorrowPlan(e.target.value)}
               placeholder="내일 해야 할 핵심 업무..."
               rows={4}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub resize-y"
+              disabled={!isEditingToday}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub resize-y disabled:bg-gray-50 disabled:cursor-not-allowed"
             />
           </section>
           <section>
@@ -294,22 +305,25 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
               onChange={(e) => setMemo(e.target.value)}
               placeholder="자유로운 아이디어 기록..."
               rows={4}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub resize-y"
+              disabled={!isEditingToday}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub resize-y disabled:bg-gray-50 disabled:cursor-not-allowed"
             />
           </section>
         </div>
 
-        <div className="flex items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className="px-6 py-3 rounded-lg bg-brand-main text-white font-medium hover:opacity-90 disabled:opacity-60 flex items-center gap-2"
-          >
-            {saving && <Loader2 size={18} className="animate-spin" />}
-            저장
-          </button>
-        </div>
+        {isEditingToday && (
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="px-6 py-3 rounded-lg bg-brand-main text-white font-medium hover:opacity-90 disabled:opacity-60 flex items-center gap-2"
+            >
+              {saving && <Loader2 size={18} className="animate-spin" />}
+              저장
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

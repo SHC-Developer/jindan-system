@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { useUserList } from '../../hooks/useUserList';
+import { useUserList, type UserListItem } from '../../hooks/useUserList';
 import { useDashboardTasks } from '../../hooks/useDashboardTasks';
 import { useApprovedTasks } from '../../hooks/useApprovedTasks';
 import {
@@ -49,13 +49,6 @@ function createEmptyRow(key: string): DraftTaskRow {
     priority: '2순위',
     referenceFiles: [],
   };
-}
-
-interface UserListItem {
-  uid: string;
-  displayName: string | null;
-  jobTitle: string | null;
-  email: string | null;
 }
 
 interface WorkAssignAdminViewProps {
@@ -547,9 +540,17 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                         onClick={() => handleSelectEmployee(u)}
                         className="flex flex-col items-center gap-2 p-4 rounded-xl border-2 border-gray-200 bg-white hover:border-brand-sub hover:bg-brand-sub/5 text-brand-dark transition-colors"
                       >
-                        <span className="w-12 h-12 rounded-full bg-brand-light flex items-center justify-center text-brand-main">
-                          <User size={24} />
-                        </span>
+                        {u.photoURL ? (
+                          <img
+                            src={u.photoURL}
+                            alt=""
+                            className="w-12 h-12 rounded-full object-cover flex-shrink-0 bg-brand-light"
+                          />
+                        ) : (
+                          <span className="w-12 h-12 rounded-full bg-brand-light flex items-center justify-center text-brand-main">
+                            <User size={24} />
+                          </span>
+                        )}
                         <span className="text-sm font-medium truncate w-full text-center">
                           {u.displayName ?? u.uid.slice(0, 8)}
                         </span>
@@ -606,8 +607,19 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                       {jointAssignees.map((u) => (
                         <span
                           key={u.uid}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-gray-100 text-gray-800 text-xs"
+                          className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-gray-100 text-gray-800 text-xs"
                         >
+                          {u.photoURL ? (
+                            <img
+                              src={u.photoURL}
+                              alt=""
+                              className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <span className="w-6 h-6 rounded-full bg-brand-light flex items-center justify-center text-brand-main flex-shrink-0">
+                              <User size={12} />
+                            </span>
+                          )}
                           {u.displayName ?? u.uid.slice(0, 8)}
                           <button
                             type="button"
@@ -651,9 +663,17 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                               onClick={() => handleAddJointAssignee(u)}
                               className="w-full flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 text-left"
                             >
-                              <span className="w-8 h-8 rounded-full bg-brand-light flex items-center justify-center text-brand-main flex-shrink-0">
-                                <User size={16} />
-                              </span>
+                              {u.photoURL ? (
+                                <img
+                                  src={u.photoURL}
+                                  alt=""
+                                  className="w-8 h-8 rounded-full object-cover flex-shrink-0 bg-brand-light"
+                                />
+                              ) : (
+                                <span className="w-8 h-8 rounded-full bg-brand-light flex items-center justify-center text-brand-main flex-shrink-0">
+                                  <User size={16} />
+                                </span>
+                              )}
                               <span className="text-sm font-medium text-gray-800">
                                 {u.displayName ?? u.uid.slice(0, 8)}
                               </span>

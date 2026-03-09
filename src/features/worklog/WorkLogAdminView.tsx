@@ -459,22 +459,22 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
+                <table className="w-full text-sm border-collapse min-w-[320px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">직원</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">오늘 상태</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">출근 시각</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">비고</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 whitespace-nowrap">직원</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 whitespace-nowrap">오늘 상태</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 whitespace-nowrap">출근 시각</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 whitespace-nowrap">비고</th>
                     </tr>
                   </thead>
                   <tbody>
                     {todayRows.map((row) => (
                       <tr key={row.userId} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50">
-                        <td className="py-3 px-4 font-medium text-gray-800">
+                        <td className="py-3 px-4 font-medium text-gray-800 whitespace-nowrap">
                           {row.displayName ?? row.userId.slice(0, 8)}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 whitespace-nowrap">
                           <span
                             className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
                               row.status === '정상출근'
@@ -491,10 +491,10 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                             {row.status}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-gray-700">
+                        <td className="py-3 px-4 text-gray-700 whitespace-nowrap">
                           {row.clockInAt != null ? formatTime(row.clockInAt) : '-'}
                         </td>
-                        <td className="py-3 px-4 text-gray-600">{row.note || '-'}</td>
+                        <td className="py-3 px-4 text-gray-600 whitespace-nowrap">{row.note || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -712,16 +712,16 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
               <p className="px-3 md:px-5 py-8 text-center text-gray-500">등록된 연차가 없습니다.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
+                <table className="w-full text-sm border-collapse min-w-[560px]">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">직원</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">연차 일자</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">유형</th>
-                      <th className="text-left py-3 px-4 font-medium text-gray-700">사유</th>
-                      <th className="text-center py-3 px-4 font-medium text-gray-700">차감일수</th>
-                      <th className="text-center py-3 px-4 font-medium text-gray-700">상태</th>
-                      <th className="text-center py-3 px-4 font-medium text-gray-700 min-w-[5.5rem]">연차승인 / 승인취소</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 whitespace-nowrap">직원</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 whitespace-nowrap">연차 일자</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 whitespace-nowrap">유형</th>
+                      <th className="text-left py-3 px-4 font-medium text-gray-700 whitespace-nowrap">사유</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-700 whitespace-nowrap">차감일수</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-700 whitespace-nowrap">상태</th>
+                      <th className="text-center py-3 px-4 font-medium text-gray-700 min-w-[5.5rem] whitespace-nowrap">연차승인 / 승인취소</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -734,14 +734,14 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                           item.type === 'morning_half' ? '오전반차' : item.type === 'afternoon_half' ? '오후반차' : '연차';
                         return (
                           <tr key={key} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50">
-                            <td className="py-3 px-4 font-medium text-gray-800">{displayName}</td>
-                            <td className="py-3 px-4 text-gray-700">{formatDateKeyDisplay(item.dateKey)}</td>
-                            <td className="py-3 px-4 text-gray-700">{typeLabel}</td>
-                            <td className="py-3 px-4 text-gray-600 max-w-[200px] truncate" title={item.reason || undefined}>
+                            <td className="py-3 px-4 font-medium text-gray-800 whitespace-nowrap">{displayName}</td>
+                            <td className="py-3 px-4 text-gray-700 whitespace-nowrap">{formatDateKeyDisplay(item.dateKey)}</td>
+                            <td className="py-3 px-4 text-gray-700 whitespace-nowrap">{typeLabel}</td>
+                            <td className="py-3 px-4 text-gray-600 max-w-[200px] truncate whitespace-nowrap" title={item.reason || undefined}>
                               {item.reason || '-'}
                             </td>
-                            <td className="py-3 px-4 text-center text-gray-700">{item.deductDays}일</td>
-                            <td className="py-3 px-4 text-center">
+                            <td className="py-3 px-4 text-center text-gray-700 whitespace-nowrap">{item.deductDays}일</td>
+                            <td className="py-3 px-4 text-center whitespace-nowrap">
                               <span
                                 className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
                                   isApproved ? 'bg-brand-sub/20 text-brand-dark' : 'bg-amber-100 text-amber-800'

@@ -556,7 +556,7 @@ export function GeneralChatPage({ user, sidebarProps, onLogout }: GeneralChatPag
                   {toastMessage}
                 </div>
               )}
-              <p className="text-xs text-gray-500 mb-1.5">
+              <p className="text-xs text-gray-500 mb-1.5 hidden lg:block">
                 파일을 끌어다 놓거나 Ctrl+V로 붙여넣을 수 있습니다 (최대 100MB)
               </p>
               <div

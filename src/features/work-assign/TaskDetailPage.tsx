@@ -116,10 +116,10 @@ export function TaskDetailPage() {
         <p className="text-red-600">{error ?? '업무를 찾을 수 없습니다.'}</p>
         <button
           type="button"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/work-assign')}
           className="mt-4 text-brand-main hover:underline flex items-center gap-1"
         >
-          <ArrowLeft size={16} /> 홈으로
+          <ArrowLeft size={16} /> 업무 목록으로
         </button>
       </div>
     );
@@ -134,7 +134,7 @@ export function TaskDetailPage() {
           <header className="flex items-center gap-3 py-3 md:py-4 px-3 md:px-4 bg-white border border-gray-200 rounded-t-xl">
         <button
           type="button"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/work-assign')}
           className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
           aria-label="뒤로"
         >

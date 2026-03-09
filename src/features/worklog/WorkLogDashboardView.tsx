@@ -756,8 +756,10 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
                   >
                     {day}
                     {isLeave && (
-                      <span className="block text-xs text-brand-dark mt-0.5">
-                        {typeLabel}{isApproved ? '(승인)' : '(대기)'}
+                      <span className="block text-xs text-brand-dark mt-0.5 leading-tight">
+                        {typeLabel}
+                        <br />
+                        {isApproved ? '(승인)' : '(대기)'}
                       </span>
                     )}
                   </button>

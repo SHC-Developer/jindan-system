@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useUserList } from '../../hooks/useUserList';
+import { useUserList, type UserListItem } from '../../hooks/useUserList';
 import { useUserDailyJournalList, useDailyJournalOnce } from '../../hooks/useDailyJournal';
 import { RichTextEditor } from './RichTextEditor';
 import { toDateKeySeoul, getDayOfWeekSeoul } from '../../lib/datetime-seoul';
@@ -19,13 +19,6 @@ function formatDateKeyLong(dateKey: string): string {
 function formatDateKeySlash(dateKey: string): string {
   const [y, m, d] = dateKey.split('-');
   return `${y}/${m}/${d}`;
-}
-
-interface UserListItem {
-  uid: string;
-  displayName: string | null;
-  jobTitle: string | null;
-  email: string | null;
 }
 
 interface DailyJournalAdminViewProps {
@@ -183,9 +176,17 @@ export function DailyJournalAdminView({ currentUser }: DailyJournalAdminViewProp
                 onClick={() => setSelectedEmployee(u)}
                 className="flex flex-col items-center gap-2 p-3 md:p-4 rounded-xl border-2 border-gray-200 bg-white hover:border-brand-sub hover:bg-brand-sub/5 text-brand-dark transition-colors"
               >
-                <span className="w-12 h-12 rounded-full bg-brand-light flex items-center justify-center text-brand-main">
-                  <User size={24} />
-                </span>
+                {u.photoURL ? (
+                  <img
+                    src={u.photoURL}
+                    alt=""
+                    className="w-12 h-12 rounded-full object-cover flex-shrink-0 bg-brand-light"
+                  />
+                ) : (
+                  <span className="w-12 h-12 rounded-full bg-brand-light flex items-center justify-center text-brand-main">
+                    <User size={24} />
+                  </span>
+                )}
                 <span className="text-sm font-medium truncate w-full text-center">
                   {u.displayName ?? u.uid.slice(0, 8)}
                 </span>
