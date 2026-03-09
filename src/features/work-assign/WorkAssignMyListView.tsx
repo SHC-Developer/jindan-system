@@ -5,6 +5,7 @@ import type { AppUser } from '../../types/user';
 import type { Task } from '../../types/task';
 import { PriorityBadge } from './PriorityBadge';
 import { DueDateCell } from './DueDateCell';
+import { MyTaskCard } from './components/MyTaskCard';
 import { Loader2, FileText, CheckCircle, Circle, AlertCircle } from 'lucide-react';
 
 interface WorkAssignMyListViewProps {
@@ -53,7 +54,14 @@ export function WorkAssignMyListView({ currentUser }: WorkAssignMyListViewProps)
           </div>
         </div>
       <div className="flex-1 overflow-auto px-3 md:px-6 pb-3 md:pb-6 min-w-0">
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+        {/* 모바일: 카드 리스트 */}
+        <div className="md:hidden space-y-4">
+          {tasks.map((task) => (
+            <MyTaskCard key={task.id} task={task} />
+          ))}
+        </div>
+        {/* 데스크톱: 테이블 */}
+        <div className="hidden md:block bg-white border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
           <table className="w-full text-sm border-collapse table-fixed min-w-[600px]">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-200">

@@ -20,6 +20,8 @@ import type { AppUser } from '../../types/user';
 import type { Task, TaskCategory, TaskPriority } from '../../types/task';
 import { DueDateCell } from './DueDateCell';
 import { PriorityBadge } from './PriorityBadge';
+import { DashboardCard } from './components/DashboardCard';
+import { DraftTaskCard } from './components/DraftTaskCard';
 import { Loader2, Send, Database, LayoutDashboard, Plus, User, Users, Paperclip, Trash2, FileText, X, Filter } from 'lucide-react';
 
 type TabId = 'dashboard' | 'database';
@@ -80,6 +82,7 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
   const [dashboardFilterOpen, setDashboardFilterOpen] = useState(false);
   const [databaseFilterOpen, setDatabaseFilterOpen] = useState(false);
   const dashboardFilterRef = useRef<HTMLDivElement>(null);
+  const dashboardFilterMobileRef = useRef<HTMLDivElement>(null);
   const databaseFilterRef = useRef<HTMLDivElement>(null);
   const dashboardFilterDropdownRef = useRef<HTMLDivElement>(null);
   const databaseFilterDropdownRef = useRef<HTMLDivElement>(null);
@@ -694,7 +697,21 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                   </div>
                 )}
                 <form onSubmit={handleBatchSubmit} className="p-4">
-                  <div className="overflow-x-auto">
+                  {/* 모바일: 카드 리스트 */}
+                  <div className="md:hidden space-y-4">
+                    {draftRows.map((row, idx) => (
+                      <DraftTaskCard
+                        key={row.key}
+                        row={row}
+                        index={idx}
+                        onUpdate={updateDraftRow}
+                        onRemove={handleRemoveRow}
+                        onOpenFileInput={openFileInputForRow}
+                      />
+                    ))}
+                  </div>
+                  {/* 데스크톱: 테이블 */}
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-sm border-collapse">
                       <thead>
                         <tr className="bg-gray-50 border-b border-gray-200">
@@ -860,8 +877,45 @@ export function WorkAssignAdminView({ currentUser }: WorkAssignAdminViewProps) {
                       className="hidden"
                       onChange={handleDashboardFileSelect}
                     />
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm border-collapse">
+                    {/* 모바일: 담당자 필터 + 카드 리스트 */}
+                    <div className="md:hidden space-y-4 p-3">
+                      <div ref={dashboardFilterMobileRef} className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-700">담당자</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!dashboardFilterOpen) {
+                              const r = dashboardFilterMobileRef.current?.getBoundingClientRect();
+                              setDashboardFilterPosition(r ? { top: r.bottom + 4, left: r.left } : null);
+                            }
+                            setDashboardFilterOpen((o) => !o);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg border text-sm font-medium ${dashboardAssigneeFilter !== null ? 'border-brand-main text-brand-main bg-brand-main/5' : 'border-gray-300 text-gray-600'}`}
+                        >
+                          필터
+                        </button>
+                      </div>
+                      {filteredDashboardTasks.map((task) => (
+                        <DashboardCard
+                          key={task.id}
+                          task={task}
+                          onUpdateTask={updateTask}
+                          onApprove={approveTask}
+                          onRequestRevision={requestRevision}
+                          onOpenDetail={() => navigate(`/task/${task.id}`)}
+                          onDelete={deleteTask}
+                          onOpenFileInput={openDashboardFileInput}
+                          onRemoveAttachment={removeTaskAttachment}
+                          isUploading={dashboardUploadingTaskId === task.id}
+                          uploadProgress={dashboardUploadProgress}
+                          onDownloadFile={downloadFileFromUrl}
+                          formatFileSize={formatFileSize}
+                        />
+                      ))}
+                    </div>
+                    {/* 데스크톱: 테이블 */}
+                    <div className="hidden md:block overflow-x-auto">
+                      <table className="w-full text-sm border-collapse min-w-[700px]">
                         <thead>
                           <tr className="bg-gray-50 border-b border-gray-200">
                             <th className="py-3 px-4 text-left font-medium text-gray-700 w-28"># 마감일</th>
