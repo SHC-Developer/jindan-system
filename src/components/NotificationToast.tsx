@@ -52,7 +52,8 @@ function ToastItemView({
 
 export function NotificationToastContainer() {
   const { toasts, removeToast, clearAllToasts } = useToastContext();
-  const { deleteNotification, deleteAllNotifications, isAdmin, onNavigateToWorkLog } = useNotificationContext();
+  const { deleteNotification, deleteAllNotifications, isAdmin, onNavigateToWorkLog, onNavigateToSharedCalendar } =
+    useNotificationContext();
   const navigate = useNavigate();
   const [clearingAll, setClearingAll] = useState(false);
 
@@ -67,6 +68,8 @@ export function NotificationToastContainer() {
   const handleClick = (item: ToastItem) => {
     if (item.notificationType === 'worklog_clockin' || item.notificationType === 'leave_approval_request') {
       onNavigateToWorkLog?.() ?? navigate('/work-log');
+    } else if (item.notificationType === 'shared_calendar_event') {
+      onNavigateToSharedCalendar?.() ?? navigate('/shared-calendar');
     } else if (item.taskId) {
       navigate(`/task/${item.taskId}`);
     }

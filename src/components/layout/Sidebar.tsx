@@ -8,6 +8,7 @@ import {
   Trash2,
   MessageCircle,
   Box,
+  Calendar,
   CheckSquare,
   Clock,
   Shield,
@@ -44,6 +45,7 @@ export function Sidebar({
   onNavigateToCad,
   onNavigateToProject,
   onNavigateToWorkAssign,
+  onNavigateToSharedCalendar,
   onNavigateToDailyJournal,
   onNavigateToWorkLog,
   onNavigateToAdmin,
@@ -394,6 +396,19 @@ export function Sidebar({
               <span className="truncate">
                 {specialistViewMode === 'admin' ? '직원 모드로 전환' : '관리자 모드로 전환'}
               </span>
+            </button>
+          )}
+          {onNavigateToSharedCalendar && (
+            <button
+              onClick={() => { onNavigateToSharedCalendar(); closeMobile(); }}
+              className={`w-full text-left px-2 py-1.5 rounded-md flex items-center text-sm transition-colors ${
+                activeSection === 'shared-calendar'
+                  ? 'bg-brand-main text-white shadow-sm'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5'
+              }`}
+            >
+              <Calendar size={16} className="mr-2 opacity-80" />
+              <span className="truncate">공유일정 캘린더</span>
             </button>
           )}
           {onNavigateToDailyJournal && (

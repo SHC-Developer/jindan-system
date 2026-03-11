@@ -22,7 +22,8 @@ export type ActiveSection =
   | 'general-chat'
   | 'cad'
   | 'admin-page'
-  | 'personnel';
+  | 'personnel'
+  | 'shared-calendar';
 
 export type SpecialistViewMode = 'admin' | 'general';
 
@@ -47,6 +48,7 @@ export interface SidebarProps {
   onNavigateToCad?: () => void;
   onNavigateToProject: (project: Project) => void;
   onNavigateToWorkAssign: () => void;
+  onNavigateToSharedCalendar?: () => void;
   onNavigateToDailyJournal?: () => void;
   onNavigateToWorkLog: () => void;
   onNavigateToAdmin: () => void;

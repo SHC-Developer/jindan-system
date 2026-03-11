@@ -18,17 +18,32 @@ interface UseNotificationsOptions {
 
 function docToNotification(docId: string, data: Record<string, unknown>): TaskNotification {
   const createdAt = data.createdAt;
+  const title = (data.title as string) ?? '';
+  const rawType = data.type as TaskNotification['type'] | undefined;
+  const hasSharedCalendarFields =
+    data.sharedCalendarEventTitle != null || data.sharedCalendarEventUserDisplayName != null;
+  const type: TaskNotification['type'] =
+    rawType === 'task_completed' ||
+    rawType === 'worklog_clockin' ||
+    rawType === 'leave_approval_request' ||
+    rawType === 'shared_calendar_event'
+      ? rawType
+      : title === '공유일정 등록' || hasSharedCalendarFields
+        ? 'shared_calendar_event'
+        : rawType ?? 'task_assigned';
   return {
     id: docId,
-    type: (data.type as TaskNotification['type']) ?? 'task_assigned',
+    type,
     taskId: (data.taskId as string) ?? '',
-    title: (data.title as string) ?? '',
+    title,
     read: Boolean(data.read),
     createdAt: typeof createdAt === 'number' ? createdAt : Date.now(),
     completedByDisplayName: data.completedByDisplayName as string | undefined,
     clockInByDisplayName: data.clockInByDisplayName as string | undefined,
     leaveUserDisplayName: data.leaveUserDisplayName as string | undefined,
     leaveDateKey: data.leaveDateKey as string | undefined,
+    sharedCalendarEventTitle: data.sharedCalendarEventTitle as string | undefined,
+    sharedCalendarEventUserDisplayName: data.sharedCalendarEventUserDisplayName as string | undefined,
   };
 }
 

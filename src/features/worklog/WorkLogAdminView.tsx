@@ -194,15 +194,15 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     };
   }, [startDate, endDate]);
 
-  const handleApproveLeave = async (userId: string, dateKey: string) => {
-    const key = `${userId}:${dateKey}`;
+  const handleApproveLeave = async (userId: string, item: LeaveDayItem) => {
+    const key = `${userId}:${item.dateKey}`;
     if (leaveApprovalLoading) return;
     setLeaveApprovalLoading(key);
     try {
-      await approveLeaveDay(userId, dateKey, currentUser.uid);
+      await approveLeaveDay(userId, item.dateKey, currentUser.uid);
       setLeaveByUser((prev) => {
         const next = new Map(prev);
-        const list = next.get(userId)?.map((i) => (i.dateKey === dateKey ? { ...i, status: 'approved' as const } : i)) ?? [];
+        const list = next.get(userId)?.map((i) => (i.dateKey === item.dateKey ? { ...i, status: 'approved' as const } : i)) ?? [];
         next.set(userId, list);
         return next;
       });
@@ -766,7 +766,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                               ) : (
                                 <button
                                   type="button"
-                                  onClick={() => handleApproveLeave(uid, item.dateKey)}
+                                  onClick={() => handleApproveLeave(uid, item)}
                                   disabled={leaveApprovalLoading === key}
                                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-main text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 whitespace-nowrap"
                                 >

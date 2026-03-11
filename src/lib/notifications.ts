@@ -1,6 +1,33 @@
 import { getDocs, deleteDoc, addDoc, query, where } from 'firebase/firestore';
 import { getUsersRef, getUserNotificationsRef } from './firestore-paths';
 
+/** 전체 직원에게 알림 생성 (공유일정 등록 등). excludeUid에 해당하는 사용자는 제외 */
+export async function notifyAllUsers(
+  payload: {
+    type: 'shared_calendar_event';
+    title: string;
+    sharedCalendarEventTitle?: string;
+    sharedCalendarEventUserDisplayName?: string;
+  },
+  excludeUid?: string
+): Promise<void> {
+  const usersRef = getUsersRef();
+  const usersSnap = await getDocs(usersRef);
+  const doc: Record<string, unknown> = {
+    type: payload.type,
+    taskId: '',
+    title: payload.title,
+    read: false,
+    createdAt: Date.now(),
+    ...(payload.sharedCalendarEventTitle != null && { sharedCalendarEventTitle: payload.sharedCalendarEventTitle }),
+    ...(payload.sharedCalendarEventUserDisplayName != null && {
+      sharedCalendarEventUserDisplayName: payload.sharedCalendarEventUserDisplayName,
+    }),
+  };
+  const uids = usersSnap.docs.map((d) => d.id).filter((uid) => uid !== excludeUid);
+  await Promise.all(uids.map((uid) => addDoc(getUserNotificationsRef(uid), doc)));
+}
+
 /** 관리자·특수 계정 전원에게 알림 생성 (출근 요청, 연차 승인 요청 등) */
 export async function notifyAdmins(payload: {
   type: 'worklog_clockin' | 'leave_approval_request';

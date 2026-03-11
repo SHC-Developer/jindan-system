@@ -36,7 +36,8 @@ export type NotificationType =
   | 'task_completed'
   | 'task_revision'
   | 'worklog_clockin'
-  | 'leave_approval_request';
+  | 'leave_approval_request'
+  | 'shared_calendar_event';
 
 export interface TaskNotification {
   id: string;
@@ -51,4 +52,8 @@ export interface TaskNotification {
   /** 연차 승인 요청 시 요청한 직원 이름 */
   leaveUserDisplayName?: string;
   leaveDateKey?: string;
+  /** 공유일정 등록 시 일정 제목 */
+  sharedCalendarEventTitle?: string;
+  /** 공유일정 등록 시 등록한 직원 이름 */
+  sharedCalendarEventUserDisplayName?: string;
 }

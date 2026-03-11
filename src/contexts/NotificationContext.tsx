@@ -10,6 +10,8 @@ export interface NotificationContextValue {
   isAdmin: boolean;
   /** 출퇴근/연차 알림 클릭 시 호출 (URL + activeSection 동기 이동) */
   onNavigateToWorkLog?: () => void;
+  /** 공유일정 알림 클릭 시 호출 */
+  onNavigateToSharedCalendar?: () => void;
 }
 
 const NotificationContext = createContext<NotificationContextValue | null>(null);
@@ -17,9 +19,10 @@ const NotificationContext = createContext<NotificationContextValue | null>(null)
 interface NotificationProviderProps {
   children: React.ReactNode;
   onNavigateToWorkLog?: () => void;
+  onNavigateToSharedCalendar?: () => void;
 }
 
-export function NotificationProvider({ children, onNavigateToWorkLog }: NotificationProviderProps) {
+export function NotificationProvider({ children, onNavigateToWorkLog, onNavigateToSharedCalendar }: NotificationProviderProps) {
   const { user } = useAuth();
   const { addToast } = useToastContext();
   const uid = user?.uid ?? null;
@@ -28,12 +31,18 @@ export function NotificationProvider({ children, onNavigateToWorkLog }: Notifica
     uid,
     onNew: (n) => {
       let message: string;
+      const isSharedCalendar =
+        n.type === 'shared_calendar_event' ||
+        n.title === '공유일정 등록' ||
+        n.sharedCalendarEventTitle != null;
       if (n.type === 'task_completed') {
         message = `${n.completedByDisplayName ?? '직원'}이(가) 업무를 완료했습니다.`;
       } else if (n.type === 'worklog_clockin') {
         message = `${n.clockInByDisplayName ?? '직원'}이(가) 출근했습니다.`;
       } else if (n.type === 'leave_approval_request') {
         message = `${n.leaveUserDisplayName ?? '직원'}이(가) 연차 승인을 요청했습니다.`;
+      } else if (isSharedCalendar) {
+        message = `${n.sharedCalendarEventUserDisplayName ?? '직원'}이(가) "${n.sharedCalendarEventTitle ?? '일정'}"을(를) 공유일정에 등록했습니다.`;
       } else {
         message = '새 업무가 할당되었습니다.';
       }
@@ -42,7 +51,7 @@ export function NotificationProvider({ children, onNavigateToWorkLog }: Notifica
         message,
         taskId: n.taskId,
         notificationId: n.id,
-        notificationType: n.type,
+        notificationType: isSharedCalendar ? 'shared_calendar_event' : n.type,
       });
     },
   });
@@ -52,6 +61,7 @@ export function NotificationProvider({ children, onNavigateToWorkLog }: Notifica
     deleteAllNotifications,
     isAdmin: user ? canAccessAdmin(user) : false,
     onNavigateToWorkLog,
+    onNavigateToSharedCalendar,
   };
 
   return (

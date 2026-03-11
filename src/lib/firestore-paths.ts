@@ -5,6 +5,7 @@ import {
   type DocumentReference,
 } from 'firebase/firestore';
 import type { ChatMessagePayload } from '../types/chat';
+import type { SharedCalendarEvent } from '../types/shared-calendar';
 import { getDbInstance, USERS_COLLECTION } from './firebase';
 
 const PROJECTS = 'projects';
@@ -143,4 +144,20 @@ const PERSONNEL_RECORDS = 'personnelRecords';
 /** personnelRecords/{userId} 문서 참조 */
 export function getPersonnelRecordRef(userId: string): DocumentReference {
   return doc(getDbInstance(), PERSONNEL_RECORDS, userId);
+}
+
+// --- 공유일정 캘린더 (전역) ---
+const SHARED_CALENDAR_EVENTS = 'sharedCalendarEvents';
+
+/** 전역 sharedCalendarEvents 컬렉션 참조 */
+export function getSharedCalendarEventsRef(): CollectionReference<SharedCalendarEvent> {
+  return collection(
+    getDbInstance(),
+    SHARED_CALENDAR_EVENTS
+  ) as CollectionReference<SharedCalendarEvent>;
+}
+
+/** sharedCalendarEvents/{eventId} 문서 참조 */
+export function getSharedCalendarEventRef(eventId: string): DocumentReference {
+  return doc(getDbInstance(), SHARED_CALENDAR_EVENTS, eventId);
 }

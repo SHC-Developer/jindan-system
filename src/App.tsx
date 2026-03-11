@@ -27,6 +27,7 @@ const GeneralChatPage = React.lazy(() => import('./features/general-chat/General
 const CadChatPage = React.lazy(() => import('./features/cad-chat/CadChatPage').then(m => ({ default: m.CadChatPage })));
 const PersonnelListPage = React.lazy(() => import('./features/personnel/PersonnelListPage').then(m => ({ default: m.PersonnelListPage })));
 const PersonnelDetailPage = React.lazy(() => import('./features/personnel/PersonnelDetailPage').then(m => ({ default: m.PersonnelDetailPage })));
+const SharedCalendarPage = React.lazy(() => import('./features/shared-calendar/SharedCalendarPage').then(m => ({ default: m.SharedCalendarPage })));
 
 function PageFallback() {
   return (
@@ -94,6 +95,10 @@ function buildSidebarProps(
       navigate('/work-assign');
       setActiveSection('work-assign');
     },
+    onNavigateToSharedCalendar: () => {
+      navigate('/shared-calendar');
+      setActiveSection('shared-calendar');
+    },
     onNavigateToDailyJournal: () => {
       navigate('/daily-journal');
       setActiveSection('daily-journal');
@@ -119,7 +124,7 @@ function buildSidebarProps(
 }
 
 export default function App() {
-  const { user, signOut, updateProfilePhotoUrl, deleteProfilePhotoAndUpdate } = useAuth();
+  const { user, loading: authLoading, signOut, updateProfilePhotoUrl, deleteProfilePhotoAndUpdate } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const {
@@ -159,6 +164,10 @@ export default function App() {
     }
     if (path === '/work-assign') {
       setActiveSection('work-assign');
+      return;
+    }
+    if (path === '/shared-calendar') {
+      setActiveSection('shared-calendar');
       return;
     }
     if (path === '/daily-journal') {
@@ -224,6 +233,14 @@ export default function App() {
     navigate('/login', { replace: true });
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-brand-light">
+        <Loader2 size={28} className="animate-spin text-brand-main" />
+      </div>
+    );
+  }
+
   if (!user) return null;
 
   const sidebarProps = buildSidebarProps(
@@ -287,6 +304,8 @@ export default function App() {
       }
       return canAccessAdmin(user) ? <PersonnelListPage currentUser={user} /> : null;
     })()
+  ) : activeSection === 'shared-calendar' ? (
+    <SharedCalendarPage currentUser={user} />
   ) : activeSection === 'general-chat' || activeSection === 'cad' ? null : activeSection === 'project' && selectedProject ? (
     <>
       <ProjectChatContent
@@ -316,6 +335,10 @@ export default function App() {
           navigate('/work-log');
           setActiveSection('worklog');
         }}
+        onNavigateToSharedCalendar={() => {
+          navigate('/shared-calendar');
+          setActiveSection('shared-calendar');
+        }}
       >
         <NotificationToastContainer />
         <GlobalToastContainer />
@@ -333,6 +356,10 @@ export default function App() {
           navigate('/work-log');
           setActiveSection('worklog');
         }}
+        onNavigateToSharedCalendar={() => {
+          navigate('/shared-calendar');
+          setActiveSection('shared-calendar');
+        }}
       >
         <NotificationToastContainer />
         <GlobalToastContainer />
@@ -348,6 +375,10 @@ export default function App() {
       onNavigateToWorkLog={() => {
         navigate('/work-log');
         setActiveSection('worklog');
+      }}
+      onNavigateToSharedCalendar={() => {
+        navigate('/shared-calendar');
+        setActiveSection('shared-calendar');
       }}
     >
     <div className="flex h-screen w-full overflow-hidden font-sans bg-brand-light">
@@ -367,8 +398,8 @@ export default function App() {
           <span className="ml-2 text-sm font-semibold text-brand-dark truncate">KDVO 안전진단팀</span>
         </div>
         <div className="flex flex-1 min-w-0 overflow-hidden w-full">
-          <Suspense fallback={<PageFallback />}>
-            {isTaskDetailPage || activeSection === 'work-assign' || activeSection === 'worklog' || activeSection === 'daily-journal' || activeSection === 'admin-page' || activeSection === 'personnel' ? (
+            <Suspense fallback={<PageFallback />}>
+            {isTaskDetailPage || activeSection === 'work-assign' || activeSection === 'worklog' || activeSection === 'daily-journal' || activeSection === 'admin-page' || activeSection === 'personnel' || activeSection === 'shared-calendar' ? (
               <div className="w-full h-full min-h-0 min-w-0 overflow-hidden">{mainContent}</div>
             ) : (
               mainContent
