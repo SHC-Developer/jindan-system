@@ -31,7 +31,11 @@ export function RichTextEditor({
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({
+        // "1. ", "- " 등 입력 시 목록으로 변환되어 문자가 사라지는 현상 방지
+        bulletList: false,
+        orderedList: false,
+      }),
       TextStyle,
       Color,
       FontSize,
