@@ -53,10 +53,9 @@ service cloud.firestore {
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
 
-    // 연차: 본인 create/delete(pending만). 관리자 read/update(승인)/delete(승인취소). 승인된 연차는 직원이 삭제 불가
+    // 연차: 로그인 사용자 전원 읽기 가능(공유일정 캘린더에서 타인 연차 표시). 본인 create/delete(pending만). 관리자 update(승인)/delete(승인취소). 승인된 연차는 직원이 삭제 불가
     match /users/{userId}/leaveDays/{dateKey} {
-      allow read: if request.auth != null
-        && (request.auth.uid == userId || isAdminOrSpecialist());
+      allow read: if request.auth != null;
       allow create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null && isAdminOrSpecialist();
       allow delete: if request.auth != null
