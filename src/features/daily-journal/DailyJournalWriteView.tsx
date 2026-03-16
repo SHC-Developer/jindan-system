@@ -38,6 +38,7 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
   /** 당일만 수정 가능, 지난 날짜는 읽기 전용 */
   const isEditingToday = editingDateKey === todayKey;
   const [goals, setGoals] = useState<DailyJournalGoal[]>(() => createEmptyGoals(DEFAULT_GOAL_COUNT));
+  const [selectedGoalIndex, setSelectedGoalIndex] = useState<number | null>(null);
   const [detailContent, setDetailContent] = useState('');
   const [tomorrowPlan, setTomorrowPlan] = useState('');
   const [memo, setMemo] = useState('');
@@ -54,6 +55,7 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
 
   useEffect(() => {
     if (docLoading) return;
+    setSelectedGoalIndex(null);
     if (journal) {
       setGoals(journal.goals.length > 0 ? journal.goals : createEmptyGoals(DEFAULT_GOAL_COUNT));
       setDetailContent(journal.detailContent);
@@ -74,8 +76,16 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
   }, []);
 
   const removeGoal = useCallback(() => {
-    setGoals((prev) => (prev.length > 0 ? prev.slice(0, -1) : prev));
-  }, []);
+    setGoals((prev) => {
+      if (prev.length === 0) return prev;
+      const indexToRemove = selectedGoalIndex !== null && selectedGoalIndex >= 0 && selectedGoalIndex < prev.length
+        ? selectedGoalIndex
+        : prev.length - 1;
+      const next = prev.filter((_, i) => i !== indexToRemove);
+      return next.length > 0 ? next : [{ text: '', checked: false }];
+    });
+    setSelectedGoalIndex(null);
+  }, [selectedGoalIndex]);
 
   const updateGoal = useCallback((index: number, updates: Partial<DailyJournalGoal>) => {
     setGoals((prev) =>
@@ -237,7 +247,7 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
                       onClick={removeGoal}
                       disabled={goals.length === 0}
                       className="p-2 rounded-lg border border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
-                      title="목표 삭제"
+                      title={selectedGoalIndex !== null ? "선택한 목표 삭제" : "맨 아래 목표 삭제"}
                     >
                       <Minus size={20} />
                     </button>
@@ -254,12 +264,20 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
               </div>
               <ul className="space-y-2">
                 {goals.map((goal, i) => (
-                  <li key={i} className="flex items-center gap-2">
+                  <li
+                    key={i}
+                    role="button"
+                    tabIndex={-1}
+                    onClick={() => isEditingToday && setSelectedGoalIndex(i)}
+                    onFocus={() => isEditingToday && setSelectedGoalIndex(i)}
+                    className={`flex items-center gap-2 rounded-lg transition-colors ${selectedGoalIndex === i ? 'ring-2 ring-brand-sub ring-offset-1 bg-brand-sub/5' : ''}`}
+                  >
                     <input
                       type="checkbox"
                       checked={goal.checked}
                       onChange={(e) => updateGoal(i, { checked: e.target.checked })}
                       disabled={!isEditingToday}
+                      onClick={(e) => e.stopPropagation()}
                       className="w-5 h-5 rounded border-gray-300 text-brand-main focus:ring-brand-main disabled:opacity-60 flex-shrink-0"
                     />
                     <input
@@ -268,6 +286,7 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
                       onChange={(e) => updateGoal(i, { text: e.target.value })}
                       placeholder={i >= DEFAULT_GOAL_COUNT - 1 && !goal.text ? '새로운 목표를 입력하세요...' : ''}
                       disabled={!isEditingToday}
+                      onFocus={() => isEditingToday && setSelectedGoalIndex(i)}
                       className={`flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub disabled:bg-gray-50 disabled:cursor-not-allowed ${goal.checked ? 'line-through text-gray-500' : ''}`}
                     />
                   </li>
@@ -306,13 +325,13 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
             </section>
           </div>
 
-          {/* 우측: 업무 상세 내용 (좌측과 높이 대칭, 내용은 영역 내 스크롤) */}
-          <section className="flex flex-col h-full min-h-[320px] lg:min-h-0 overflow-hidden">
+          {/* 우측: 업무 상세 내용 (고정 높이, 영역 내 스크롤) */}
+          <section className="flex flex-col min-h-[320px] max-h-[70vh] overflow-hidden">
             <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2 mb-2 flex-shrink-0">
               <FileText size={18} className="text-brand-sub" />
               업무 상세 내용
             </h2>
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
               <RichTextEditor
                 key={journal ? `${editingDateKey}-${journal.updatedAt}` : editingDateKey}
                 value={hasSyncedFromJournal ? detailContent : (journal?.detailContent ?? detailContent)}

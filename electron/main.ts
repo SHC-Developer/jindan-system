@@ -16,6 +16,23 @@ app.setName('KDVO 안전진단팀');
 if (isDev) {
   app.setPath('userData', path.join(os.tmpdir(), 'jindan-system-electron-dev'));
 }
+
+// 단일 인스턴스: 이미 실행 중이면 새 프로세스는 종료하고, 두 번째 실행 시 기존 창을 앞으로
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+}
+app.on('second-instance', () => {
+  if (mainWindow) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  } else if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.show();
+    splashWindow.focus();
+  }
+});
+
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -137,14 +154,18 @@ function getSplashHtml(): string {
       .title {
         margin: 0;
         font-size: clamp(28px, 4vw, 38px);
-        line-height: 1.15;
+        line-height: 1.25;
         font-weight: 800;
+        word-break: keep-all;
+        overflow-wrap: break-word;
       }
       .subtitle {
         margin: 10px 0 0;
         color: var(--text-sub);
         font-size: 16px;
-        line-height: 1.7;
+        line-height: 1.6;
+        word-break: keep-all;
+        overflow-wrap: break-word;
       }
       .status {
         margin-top: 34px;
@@ -152,6 +173,10 @@ function getSplashHtml(): string {
         align-items: end;
         justify-content: space-between;
         gap: 16px;
+      }
+      .status > div:first-child {
+        min-width: 200px;
+        flex: 1;
       }
       .status-label {
         font-size: 12px;
@@ -164,6 +189,8 @@ function getSplashHtml(): string {
         font-size: 23px;
         font-weight: 700;
         line-height: 1.35;
+        word-break: keep-all;
+        overflow-wrap: break-word;
       }
       .status-progress {
         flex-shrink: 0;
@@ -531,6 +558,7 @@ function initAutoUpdater(): void {
     });
     if (!startupFlowFinished) {
       setTimeout(() => {
+        closeSplashWindow(); // 재시작 직전 스플래시 즉시 제거
         isQuitting = true;
         autoUpdater.quitAndInstall(false, true);
       }, 1200);
