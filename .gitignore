@@ -1,5 +1,9 @@
 node_modules/
+
+# 빌드 산출물은 제외하지만, NSIS 스크립트 등 일부 설정 파일은 예외 처리
 build/
+!build/installer.nsh
+
 dist/
 dist-electron/
 release/
