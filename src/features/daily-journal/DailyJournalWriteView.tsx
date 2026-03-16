@@ -186,8 +186,8 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
 
   return (
     <div className="h-full overflow-auto bg-brand-light">
-      <div className="max-w-3xl mx-auto p-4 md:p-6">
-        <div className="flex items-center justify-between mb-4">
+      <div className="max-w-6xl mx-auto p-4 md:p-6">
+        <div className="flex items-center justify-between mb-4 md:mb-6">
           <h1 className="text-xl font-bold text-brand-dark flex items-center gap-2">
             <FileText className="text-brand-main" />
             업무일지 작성
@@ -203,7 +203,7 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
             <button
               type="button"
               onClick={openList}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 bg-white text-brand-dark text-sm font-medium hover:bg-gray-50"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 bg-white text-brand-dark text-sm font-medium hover:bg-gray-50 min-h-[44px] md:min-h-0"
             >
               <History size={18} />
               내 기록 보기
@@ -211,8 +211,8 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
           </div>
         </div>
 
-        <section className="mb-6">
-          <span className="text-2xl font-bold text-brand-dark">
+        <section className="mb-4 md:mb-6">
+          <span className="text-xl md:text-2xl font-bold text-brand-dark">
             {formatDateKeyLong(editingDateKey)}
           </span>
           {!isEditingToday && (
@@ -220,99 +220,107 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
           )}
         </section>
 
-        <section className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2">
-              <ListChecks size={18} className="text-brand-sub" />
-              오늘의 주요 목표
-            </h2>
-            {isEditingToday && (
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={removeGoal}
-                  disabled={goals.length === 0}
-                  className="p-2 rounded-lg border border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
-                  title="목표 삭제"
-                >
-                  <Minus size={20} />
-                </button>
-                <button
-                  type="button"
-                  onClick={addGoal}
-                  className="p-2 rounded-lg border border-brand-sub bg-brand-sub/10 text-brand-main hover:bg-brand-sub/20"
-                  title="목표 추가"
-                >
-                  <Plus size={20} />
-                </button>
+        {/* 좌: 목표·내일 계획·메모 / 우: 업무 상세(세로 길게) */}
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,360px)_1fr] gap-4 md:gap-6 mb-4 md:mb-6">
+          {/* 좌측: 오늘의 주요목표, 내일의 계획, 기타 메모 및 아이디어 */}
+          <div className="flex flex-col gap-4 md:gap-6 lg:min-h-0">
+            <section>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2">
+                  <ListChecks size={18} className="text-brand-sub" />
+                  오늘의 주요 목표
+                </h2>
+                {isEditingToday && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={removeGoal}
+                      disabled={goals.length === 0}
+                      className="p-2 rounded-lg border border-gray-300 bg-gray-100 text-gray-600 hover:bg-gray-200 disabled:opacity-40 disabled:cursor-not-allowed min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
+                      title="목표 삭제"
+                    >
+                      <Minus size={20} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addGoal}
+                      className="p-2 rounded-lg border border-brand-sub bg-brand-sub/10 text-brand-main hover:bg-brand-sub/20 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center"
+                      title="목표 추가"
+                    >
+                      <Plus size={20} />
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+              <ul className="space-y-2">
+                {goals.map((goal, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={goal.checked}
+                      onChange={(e) => updateGoal(i, { checked: e.target.checked })}
+                      disabled={!isEditingToday}
+                      className="w-5 h-5 rounded border-gray-300 text-brand-main focus:ring-brand-main disabled:opacity-60 flex-shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={goal.text}
+                      onChange={(e) => updateGoal(i, { text: e.target.value })}
+                      placeholder={i >= DEFAULT_GOAL_COUNT - 1 && !goal.text ? '새로운 목표를 입력하세요...' : ''}
+                      disabled={!isEditingToday}
+                      className={`flex-1 min-w-0 px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub disabled:bg-gray-50 disabled:cursor-not-allowed ${goal.checked ? 'line-through text-gray-500' : ''}`}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2 mb-2">
+                <Lightbulb size={18} className="text-brand-sub" />
+                내일의 계획
+              </h2>
+              <textarea
+                value={tomorrowPlan}
+                onChange={(e) => setTomorrowPlan(e.target.value)}
+                placeholder="내일 해야 할 핵심 업무..."
+                rows={4}
+                disabled={!isEditingToday}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub resize-none disabled:bg-gray-50 disabled:cursor-not-allowed"
+              />
+            </section>
+
+            <section>
+              <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2 mb-2">
+                <Lightbulb size={18} className="text-brand-sub" />
+                기타 메모 및 아이디어
+              </h2>
+              <textarea
+                value={memo}
+                onChange={(e) => setMemo(e.target.value)}
+                placeholder="자유로운 아이디어 기록..."
+                rows={4}
+                disabled={!isEditingToday}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub resize-none disabled:bg-gray-50 disabled:cursor-not-allowed"
+              />
+            </section>
           </div>
-          <ul className="space-y-2">
-            {goals.map((goal, i) => (
-              <li key={i} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={goal.checked}
-                  onChange={(e) => updateGoal(i, { checked: e.target.checked })}
-                  disabled={!isEditingToday}
-                  className="w-5 h-5 rounded border-gray-300 text-brand-main focus:ring-brand-main disabled:opacity-60"
-                />
-                <input
-                  type="text"
-                  value={goal.text}
-                  onChange={(e) => updateGoal(i, { text: e.target.value })}
-                  placeholder={i >= DEFAULT_GOAL_COUNT - 1 && !goal.text ? '새로운 목표를 입력하세요...' : ''}
-                  disabled={!isEditingToday}
-                  className={`flex-1 px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub disabled:bg-gray-50 disabled:cursor-not-allowed ${goal.checked ? 'line-through text-gray-500' : ''}`}
-                />
-              </li>
-            ))}
-          </ul>
-        </section>
 
-        <section className="mb-6">
-          <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2 mb-2">
-            <FileText size={18} className="text-brand-sub" />
-            업무 상세 내용
-          </h2>
-          <RichTextEditor
-            key={journal ? `${editingDateKey}-${journal.updatedAt}` : editingDateKey}
-            value={hasSyncedFromJournal ? detailContent : (journal?.detailContent ?? detailContent)}
-            onChange={setDetailContent}
-            readOnly={!isEditingToday}
-            className="min-h-[200px]"
-          />
-        </section>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-4 md:mb-6">
-          <section>
-            <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2 mb-2">
-              <Lightbulb size={18} className="text-brand-sub" />
-              내일의 계획
+          {/* 우측: 업무 상세 내용 (좌측과 높이 대칭, 내용은 영역 내 스크롤) */}
+          <section className="flex flex-col h-full min-h-[320px] lg:min-h-0 overflow-hidden">
+            <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2 mb-2 flex-shrink-0">
+              <FileText size={18} className="text-brand-sub" />
+              업무 상세 내용
             </h2>
-            <textarea
-              value={tomorrowPlan}
-              onChange={(e) => setTomorrowPlan(e.target.value)}
-              placeholder="내일 해야 할 핵심 업무..."
-              rows={4}
-              disabled={!isEditingToday}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub resize-y disabled:bg-gray-50 disabled:cursor-not-allowed"
-            />
-          </section>
-          <section>
-            <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2 mb-2">
-              <Lightbulb size={18} className="text-brand-sub" />
-              기타 메모 및 아이디어
-            </h2>
-            <textarea
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              placeholder="자유로운 아이디어 기록..."
-              rows={4}
-              disabled={!isEditingToday}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub resize-y disabled:bg-gray-50 disabled:cursor-not-allowed"
-            />
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <RichTextEditor
+                key={journal ? `${editingDateKey}-${journal.updatedAt}` : editingDateKey}
+                value={hasSyncedFromJournal ? detailContent : (journal?.detailContent ?? detailContent)}
+                onChange={setDetailContent}
+                readOnly={!isEditingToday}
+                className="h-full flex flex-col overflow-hidden"
+              />
+            </div>
           </section>
         </div>
 
@@ -322,7 +330,7 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="px-6 py-3 rounded-lg bg-brand-main text-white font-medium hover:opacity-90 disabled:opacity-60 flex items-center gap-2"
+              className="px-6 py-3 rounded-lg bg-brand-main text-white font-medium hover:opacity-90 disabled:opacity-60 flex items-center gap-2 min-h-[44px] md:min-h-0"
             >
               {saving && <Loader2 size={18} className="animate-spin" />}
               저장

@@ -35,6 +35,14 @@ export function ElectronUpdateBanner() {
     }).catch(() => {});
 
     const unsubscribe = api.onUpdateStatus?.((nextStatus) => {
+      if (nextStatus === null) {
+        setStatus(null);
+        if (hideTimerRef.current) {
+          window.clearTimeout(hideTimerRef.current);
+          hideTimerRef.current = null;
+        }
+        return;
+      }
       setStatus(nextStatus);
       scheduleHide(nextStatus);
     });

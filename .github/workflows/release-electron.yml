@@ -80,6 +80,8 @@ jobs:
           Write-Host "Local artifacts: latest.yml, .exe, .blockmap present."
 
       - name: Verify GitHub Release and assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = $env:GITHUB_REF_NAME
           gh release view $tag --repo SHC-Developer/jindan-system

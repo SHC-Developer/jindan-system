@@ -1,7 +1,7 @@
 {
   "name": "jindan-system",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "KDVO 안전진단팀 협업 웹앱 (Electron 데스크톱)",
   "author": "KDVO",
   "type": "module",
@@ -88,7 +88,9 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "KDVO 안전진단팀 ${version}",
+      "include": "build/installer.nsh"
     },
     "publish": {
       "provider": "github",

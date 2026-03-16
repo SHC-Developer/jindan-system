@@ -196,12 +196,14 @@ export function RichTextEditor({
   );
 
   return (
-    <div className={`border border-gray-200 rounded-lg bg-white overflow-hidden ${className}`}>
+    <div className={`border border-gray-200 rounded-lg bg-white overflow-hidden flex flex-col ${className}`}>
       {toolbar}
-      <EditorContent
-        editor={editor}
-        className="prose prose-sm max-w-none min-h-[120px] px-3 py-2 focus:outline-none [&_.ProseMirror]:min-h-[120px] [&_.ProseMirror]:outline-none"
-      />
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <EditorContent
+          editor={editor}
+          className="prose prose-sm max-w-none min-h-[120px] px-3 py-2 focus:outline-none [&_.ProseMirror]:min-h-[120px] [&_.ProseMirror]:outline-none"
+        />
+      </div>
     </div>
   );
 }

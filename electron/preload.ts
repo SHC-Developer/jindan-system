@@ -11,14 +11,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
       message: string;
       version?: string;
       progress?: number;
-    }) => void
+    } | null) => void
   ) => {
     const handler = (_event: unknown, status: {
       status: 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
       message: string;
       version?: string;
       progress?: number;
-    }) => callback(status);
+    } | null) => callback(status);
     ipcRenderer.on('update-status', handler);
     return () => {
       ipcRenderer.removeListener('update-status', handler);
