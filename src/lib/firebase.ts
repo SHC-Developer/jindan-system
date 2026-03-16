@@ -70,6 +70,11 @@ export function isFirebaseConfigured(): boolean {
   return Boolean(import.meta.env.VITE_FIREBASE_API_KEY);
 }
 
+/** Electron에서 로그아웃 후 쿠키 삭제 시 사용할 Auth 도메인 */
+export function getAuthDomain(): string | undefined {
+  return import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined;
+}
+
 export const USERS_COLLECTION = 'users';
 
 export type { UserRole };

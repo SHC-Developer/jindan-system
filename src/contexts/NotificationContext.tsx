@@ -53,6 +53,9 @@ export function NotificationProvider({ children, onNavigateToWorkLog, onNavigate
         notificationId: n.id,
         notificationType: isSharedCalendar ? 'shared_calendar_event' : n.type,
       });
+      if (typeof window !== 'undefined' && window.electronAPI?.showNotification) {
+        window.electronAPI.showNotification(n.title, message);
+      }
     },
   });
 

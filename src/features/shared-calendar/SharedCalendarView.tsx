@@ -343,7 +343,8 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
                           key={ev.id}
                           role="button"
                           tabIndex={0}
-                          className={`text-xs truncate rounded px-1 py-0.5 cursor-pointer text-center leading-5 ${barClass}`}
+                          title={ev.title}
+                          className={`text-xs rounded px-1 py-0.5 cursor-pointer text-center leading-5 line-clamp-2 break-words overflow-hidden min-w-0 ${barClass}`}
                           style={{
                             gridColumn: `${startCol + 1} / ${endCol + 2}`,
                             gridRow: rowIdx + 2,
@@ -388,7 +389,8 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
                                       key={ev.id}
                                       role="button"
                                       tabIndex={0}
-                                      className={`text-xs truncate rounded px-1 py-0.5 cursor-pointer leading-5 ${badgeClass} ${idx >= maxVisibleMobile ? 'hidden md:block' : ''}`}
+                                      title={ev.title}
+                                      className={`text-xs rounded px-1 py-0.5 cursor-pointer leading-5 line-clamp-2 break-words overflow-hidden min-w-0 ${badgeClass} ${idx >= maxVisibleMobile ? 'hidden md:block' : ''}`}
                                       onClick={(e) => handleOpenDetailModal(ev, e)}
                                       onKeyDown={(e) => {
                                         if (e.key === 'Enter' || e.key === ' ') {

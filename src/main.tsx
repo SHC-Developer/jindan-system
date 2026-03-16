@@ -1,11 +1,32 @@
-import { StrictMode } from 'react';
+import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import App from './App.tsx';
 import { LoginPage } from './features/login/LoginPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { ToastProvider } from './contexts/ToastContext';
+import { ElectronUpdateBanner } from './components/ElectronUpdateBanner';
 import './index.css';
+
+const isElectron =
+  typeof window !== 'undefined' &&
+  (
+    !!window.electronAPI ||
+    window.location.protocol === 'file:' ||
+    navigator.userAgent.includes('Electron')
+  );
+const Router = isElectron ? HashRouter : BrowserRouter;
+const routerBasename =
+  isElectron || import.meta.env.BASE_URL === './' ? '/' : import.meta.env.BASE_URL;
+
+function ElectronHashFallback() {
+  useEffect(() => {
+    if (!isElectron) return;
+    const h = window.location.hash;
+    if (h === '' || h === '#') window.location.hash = '#/';
+  }, []);
+  return null;
+}
 
 const AppWithToast = () => (
   <ToastProvider>
@@ -15,7 +36,9 @@ const AppWithToast = () => (
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter basename={import.meta.env.BASE_URL}>
+    <Router basename={routerBasename}>
+      <ElectronHashFallback />
+      <ElectronUpdateBanner />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route
@@ -116,6 +139,6 @@ createRoot(document.getElementById('root')!).render(
         />
         <Route path="*" element={<Navigate to="/general-chat" replace />} />
       </Routes>
-    </BrowserRouter>
+    </Router>
   </StrictMode>,
 );

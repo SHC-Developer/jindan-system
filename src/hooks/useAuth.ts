@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { getAuthInstance, isFirebaseConfigured } from '../lib/firebase';
+import { getAuthInstance, getAuthDomain, isFirebaseConfigured } from '../lib/firebase';
 import { fetchAppUser, subscribeAppUser, signInWithGoogle as authSignInWithGoogle, signOut as authSignOut, updateAuthProfilePhoto, updateUserPhotoURLInFirestore } from '../lib/auth';
 import { clearNotifiedIds } from './useNotifications';
 import { deleteProfilePhoto } from '../lib/storage';
@@ -89,6 +89,10 @@ export function useAuth(): UseAuthResult {
       await authSignOut();
       clearNotifiedIds();
       setUser(null);
+      // Electron: 다음 로그인 시 계정 선택이 되도록 Google/Firebase 쿠키 삭제
+      if (typeof window !== 'undefined' && window.electronAPI?.clearAuthCookies) {
+        await window.electronAPI.clearAuthCookies(getAuthDomain()).catch(() => {});
+      }
     } catch (e) {
       const message = e instanceof Error ? e.message : '로그아웃에 실패했습니다.';
       setError(message);
