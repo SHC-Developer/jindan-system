@@ -1,7 +1,7 @@
 {
   "name": "jindan-system",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "KDVO 안전진단팀 협업 웹앱 (Electron 데스크톱)",
   "author": "KDVO",
   "type": "module",
@@ -93,7 +93,8 @@
     "publish": {
       "provider": "github",
       "owner": "SHC-Developer",
-      "repo": "jindan-system"
+      "repo": "jindan-system",
+      "releaseType": "release"
     }
   }
 }

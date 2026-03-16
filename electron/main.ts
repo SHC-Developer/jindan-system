@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, ipcMain, nativeImage, session, Tray } from 'electron';
+import { app, BrowserWindow, Menu, ipcMain, nativeImage, Notification, session, Tray } from 'electron';
 import pkg from 'electron-updater';
 const { autoUpdater } = pkg;
 import path from 'path';
@@ -18,6 +18,15 @@ let tray: Tray | null = null;
 let isQuitting = false;
 let prodServer: http.Server | null = null;
 let prodUrl: string | null = null;
+let hasShownTrayNotice = false;
+type UpdateStatus =
+  | { status: 'checking'; message: string }
+  | { status: 'available'; message: string; version?: string }
+  | { status: 'not-available'; message: string; version?: string }
+  | { status: 'downloading'; message: string; progress: number }
+  | { status: 'downloaded'; message: string; version?: string }
+  | { status: 'error'; message: string };
+let latestUpdateStatus: UpdateStatus | null = null;
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=UTF-8',
@@ -35,6 +44,46 @@ const MIME: Record<string, string> = {
 
 function getPreloadPath(): string {
   return path.join(__dirname, 'preload.js');
+}
+
+function sendUpdateStatus(status: UpdateStatus): void {
+  latestUpdateStatus = status;
+  mainWindow?.webContents.send('update-status', status);
+}
+
+function showLocalNotification(title: string, body: string): void {
+  try {
+    if (!Notification.isSupported()) return;
+    const notification = new Notification({ title, body });
+    notification.on('click', () => {
+      mainWindow?.show();
+      mainWindow?.focus();
+    });
+    notification.show();
+  } catch (err) {
+    console.error('Local notification failed:', err);
+  }
+}
+
+function getUpdateErrorMessage(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (
+    /Unable to find latest version on GitHub/i.test(raw) ||
+    /Cannot parse releases feed/i.test(raw) ||
+    /please ensure a production release exists/i.test(raw)
+  ) {
+    return '최신 GitHub Release 또는 latest.yml을 찾지 못했습니다. 배포가 완료되었는지 확인해 주세요.';
+  }
+  return raw || '업데이트 확인에 실패했습니다.';
+}
+
+async function checkForAppUpdates(): Promise<void> {
+  try {
+    await autoUpdater.checkForUpdatesAndNotify();
+  } catch (err) {
+    console.error('Auto update failed:', err);
+    sendUpdateStatus({ status: 'error', message: getUpdateErrorMessage(err) });
+  }
 }
 
 function createWindow(loadUrl?: string): void {
@@ -71,6 +120,13 @@ function createWindow(loadUrl?: string): void {
     if (!isQuitting) {
       event.preventDefault();
       mainWindow?.hide();
+      if (!hasShownTrayNotice) {
+        hasShownTrayNotice = true;
+        showLocalNotification(
+          'KDVO 안전진단팀',
+          '앱이 백그라운드에서 계속 실행 중입니다. 완전 종료는 트레이 아이콘의 "종료"를 사용하세요.'
+        );
+      }
     }
   });
 
@@ -94,6 +150,7 @@ function createTray(): void {
   tray.setContextMenu(
     Menu.buildFromTemplate([
       { label: '열기', click: () => { mainWindow?.show(); mainWindow?.focus(); } },
+      { label: '업데이트 확인', click: () => { void checkForAppUpdates(); mainWindow?.show(); mainWindow?.focus(); } },
       { type: 'separator' },
       { label: '종료', click: () => { isQuitting = true; app.quit(); } },
     ])
@@ -102,12 +159,45 @@ function createTray(): void {
 
 function initAutoUpdater(): void {
   if (isDev) return;
+  autoUpdater.on('checking-for-update', () => {
+    sendUpdateStatus({ status: 'checking', message: '업데이트를 확인하는 중입니다…' });
+  });
+  autoUpdater.on('update-available', (info) => {
+    sendUpdateStatus({
+      status: 'available',
+      version: info.version,
+      message: `새 버전 ${info.version}을(를) 다운로드하는 중입니다…`,
+    });
+  });
+  autoUpdater.on('update-not-available', (info) => {
+    sendUpdateStatus({
+      status: 'not-available',
+      version: info.version,
+      message: `현재 최신 버전(${info.version ?? app.getVersion()})을 사용 중입니다.`,
+    });
+  });
+  autoUpdater.on('download-progress', (progress) => {
+    const progressPercent = Math.max(0, Math.min(100, Math.round(progress.percent)));
+    sendUpdateStatus({
+      status: 'downloading',
+      progress: progressPercent,
+      message: `업데이트 다운로드 중… ${progressPercent}%`,
+    });
+  });
   autoUpdater.on('update-downloaded', () => {
+    sendUpdateStatus({
+      status: 'downloaded',
+      message: '새 버전이 준비되었습니다. 재시작하면 설치됩니다.',
+    });
     mainWindow?.webContents.send('update-downloaded');
   });
-  autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+  autoUpdater.on('error', (err) => {
+    console.error('Auto updater error:', err);
+    sendUpdateStatus({ status: 'error', message: getUpdateErrorMessage(err) });
+  });
+  void checkForAppUpdates();
   setInterval(() => {
-    autoUpdater.checkForUpdatesAndNotify().catch(() => {});
+    void checkForAppUpdates();
   }, 60 * 60 * 1000);
 }
 
@@ -196,15 +286,15 @@ app.on('activate', () => {
 });
 
 ipcMain.handle('notification:show', (_event, title: string, body: string) => {
-  try {
-    new Notification(title, { body });
-  } catch {
-    // 알림 미지원 환경 무시
-  }
+  showLocalNotification(title, body);
 });
 
 ipcMain.handle('getVersion', () => {
   return app.getVersion();
+});
+
+ipcMain.handle('get-update-status', () => {
+  return latestUpdateStatus;
 });
 
 /** 로그아웃 후 다른 계정으로 로그인할 수 있도록 Google/Firebase 인증 관련 쿠키·스토리지 삭제 */
