@@ -1,4 +1,4 @@
-import { addDoc, updateDoc, getDoc, deleteDoc, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { addDoc, updateDoc, getDoc, deleteDoc, getDocs, query, where, orderBy, limit, runTransaction } from 'firebase/firestore';
 import { getWorkLogsRef, getWorkLogRef } from './firestore-paths';
 import { toDateKeySeoul } from './datetime-seoul';
 import type { WorkLogStatus } from '../types/worklog';
@@ -37,6 +37,7 @@ export async function createWorkLog(
     overtimeStartAt: null,
     overtimeEndAt: null,
     overtimeReason: null,
+    note: null,
   });
   return docRef.id;
 }
@@ -80,8 +81,13 @@ export async function approveWorkLog(logId: string, approvedByUid: string): Prom
 /** 퇴근하기: clockOutAt 업데이트. clockOutAtMs 없으면 현재 시각, 있으면 해당 시각(자동 퇴근 18:10 등) 사용. */
 export async function clockOutWorkLog(logId: string, clockOutAtMs?: number): Promise<void> {
   const ref = getWorkLogRef(logId);
-  await updateDoc(ref, {
-    clockOutAt: clockOutAtMs ?? Date.now(),
+  await runTransaction(ref.firestore, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('해당 출퇴근 기록을 찾을 수 없습니다.');
+    if (snap.data()?.clockOutAt != null) return;
+    tx.update(ref, {
+      clockOutAt: clockOutAtMs ?? Date.now(),
+    });
   });
 }
 
@@ -97,8 +103,13 @@ export async function startOvertime(logId: string, overtimeReason?: string | nul
 /** 야근 종료: overtimeEndAt 설정. endAtMs 없으면 현재 시각, 있으면 해당 시각(다음날 06:00 자동 종료 등) 사용. */
 export async function endOvertime(logId: string, endAtMs?: number): Promise<void> {
   const ref = getWorkLogRef(logId);
-  await updateDoc(ref, {
-    overtimeEndAt: endAtMs ?? Date.now(),
+  await runTransaction(ref.firestore, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error('해당 출퇴근 기록을 찾을 수 없습니다.');
+    if (snap.data()?.overtimeEndAt != null) return;
+    tx.update(ref, {
+      overtimeEndAt: endAtMs ?? Date.now(),
+    });
   });
 }
 
@@ -122,6 +133,7 @@ export async function createAbsentWorkLog(
     overtimeStartAt: null,
     overtimeEndAt: null,
     overtimeReason: null,
+    note: null,
   });
   return docRef.id;
 }
@@ -146,6 +158,7 @@ export async function createOvertimeOnlyWorkLog(
     overtimeStartAt: now,
     overtimeEndAt: null,
     overtimeReason: overtimeReason ?? null,
+    note: null,
   });
   return docRef.id;
 }
@@ -176,6 +189,33 @@ export async function updateAbsentToOvertime(
     overtimeEndAt: null,
     overtimeReason: overtimeReason ?? null,
   });
+}
+
+/** 관리자 전용: 출퇴근 기록 필드 수정 (상태·시각·비고·연차구분). */
+export interface UpdateWorkLogByAdminPayload {
+  status?: WorkLogStatus;
+  clockInAt?: number;
+  clockOutAt?: number | null;
+  overtimeStartAt?: number | null;
+  overtimeEndAt?: number | null;
+  note?: string | null;
+  leaveType?: 'annual' | 'half' | null;
+}
+export async function updateWorkLogByAdmin(
+  logId: string,
+  payload: UpdateWorkLogByAdminPayload
+): Promise<void> {
+  const ref = getWorkLogRef(logId);
+  const updates: Record<string, unknown> = {};
+  if (payload.status !== undefined) updates.status = payload.status;
+  if (payload.clockInAt !== undefined) updates.clockInAt = payload.clockInAt;
+  if (payload.clockOutAt !== undefined) updates.clockOutAt = payload.clockOutAt;
+  if (payload.overtimeStartAt !== undefined) updates.overtimeStartAt = payload.overtimeStartAt;
+  if (payload.overtimeEndAt !== undefined) updates.overtimeEndAt = payload.overtimeEndAt;
+  if (payload.note !== undefined) updates.note = payload.note;
+  if (payload.leaveType !== undefined) updates.leaveType = payload.leaveType;
+  if (Object.keys(updates).length === 0) return;
+  await updateDoc(ref, updates);
 }
 
 /** 관리자 전용: 출근 기록 삭제(출근 상태 리셋). */

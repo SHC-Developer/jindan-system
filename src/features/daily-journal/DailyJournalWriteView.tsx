@@ -22,7 +22,7 @@ function formatDateKeySlash(dateKey: string): string {
   return `${y}/${m}/${d}`;
 }
 
-const DEFAULT_GOAL_COUNT = 3;
+const DEFAULT_GOAL_COUNT = 5;
 const NOTEPAD_ICON = `${import.meta.env.BASE_URL}notepad.png`;
 
 interface DailyJournalWriteViewProps {
@@ -35,8 +35,8 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
   const todayKey = toDateKeySeoul(Date.now());
   const [viewMode, setViewMode] = useState<ViewMode>('write');
   const [editingDateKey, setEditingDateKey] = useState<string>(todayKey);
-  /** 당일만 수정 가능, 지난 날짜는 읽기 전용 */
-  const isEditingToday = editingDateKey === todayKey;
+  /** 모든 날짜 수정 가능 */
+  const isEditingToday = true;
   const [goals, setGoals] = useState<DailyJournalGoal[]>(() => createEmptyGoals(DEFAULT_GOAL_COUNT));
   const [selectedGoalIndex, setSelectedGoalIndex] = useState<number | null>(null);
   const [detailContent, setDetailContent] = useState('');
@@ -135,8 +135,8 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
   if (viewMode === 'list') {
     return (
       <div className="h-full overflow-auto bg-brand-light">
-        <div className="max-w-2xl mx-auto p-4 md:p-6">
-          <div className="flex items-center justify-between mb-6">
+        <div className="max-w-6xl mx-auto p-4 md:p-6">
+          <div className="flex items-center justify-between mb-4 md:mb-6">
             <h1 className="text-xl font-bold text-brand-dark flex items-center gap-2">
               <History className="text-brand-main" />
               내 기록 보기
@@ -225,16 +225,14 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
           <span className="text-xl md:text-2xl font-bold text-brand-dark">
             {formatDateKeyLong(editingDateKey)}
           </span>
-          {!isEditingToday && (
-            <p className="text-sm text-amber-600 mt-1">지난 날짜는 수정할 수 없습니다.</p>
-          )}
         </section>
 
-        {/* 좌: 목표·내일 계획·메모 / 우: 업무 상세(세로 길게) */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,360px)_1fr] gap-4 md:gap-6 mb-4 md:mb-6">
-          {/* 좌측: 오늘의 주요목표, 내일의 계획, 기타 메모 및 아이디어 */}
-          <div className="flex flex-col gap-4 md:gap-6 lg:min-h-0">
-            <section>
+        {/* 좌: 목표·내일 계획·메모 / 우: 업무 상세(세로 길이 항상 일치) */}
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,360px)_1fr] gap-4 md:gap-6 mb-4 md:mb-6 lg:h-[640px] lg:items-stretch lg:overflow-hidden">
+          {/* 좌측: 오늘의 주요목표, 내일의 계획, 기타 메모 및 아이디어 (열 높이 맞춤, 내용은 내부 스크롤) */}
+          <div className="flex flex-col min-h-[320px] lg:h-full lg:min-h-0 lg:overflow-hidden">
+            <div className="flex-1 min-h-0 flex flex-col gap-4 md:gap-6 overflow-y-auto">
+            <section className="flex-shrink-0">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2">
                   <ListChecks size={18} className="text-brand-sub" />
@@ -294,7 +292,7 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
               </ul>
             </section>
 
-            <section>
+            <section className="flex-shrink-0">
               <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2 mb-2">
                 <Lightbulb size={18} className="text-brand-sub" />
                 내일의 계획
@@ -309,7 +307,7 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
               />
             </section>
 
-            <section>
+            <section className="flex-shrink-0">
               <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2 mb-2">
                 <Lightbulb size={18} className="text-brand-sub" />
                 기타 메모 및 아이디어
@@ -323,10 +321,11 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
                 className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-white text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-sub resize-none disabled:bg-gray-50 disabled:cursor-not-allowed"
               />
             </section>
+            </div>
           </div>
 
-          {/* 우측: 업무 상세 내용 (고정 높이, 영역 내 스크롤) */}
-          <section className="flex flex-col min-h-[320px] max-h-[70vh] overflow-hidden">
+          {/* 우측: 업무 상세 내용 (좌측과 세로 높이 일치, 영역 내 스크롤) */}
+          <section className="flex flex-col min-h-[320px] lg:h-full lg:min-h-0 lg:overflow-hidden">
             <h2 className="text-base font-semibold text-brand-dark flex items-center gap-2 mb-2 flex-shrink-0">
               <FileText size={18} className="text-brand-sub" />
               업무 상세 내용
@@ -343,19 +342,17 @@ export function DailyJournalWriteView({ currentUser }: DailyJournalWriteViewProp
           </section>
         </div>
 
-        {isEditingToday && (
-          <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="px-6 py-3 rounded-lg bg-brand-main text-white font-medium hover:opacity-90 disabled:opacity-60 flex items-center gap-2 min-h-[44px] md:min-h-0"
-            >
-              {saving && <Loader2 size={18} className="animate-spin" />}
-              저장
-            </button>
-          </div>
-        )}
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="px-6 py-3 rounded-lg bg-brand-main text-white font-medium hover:opacity-90 disabled:opacity-60 flex items-center gap-2 min-h-[44px] md:min-h-0"
+          >
+            {saving && <Loader2 size={18} className="animate-spin" />}
+            저장
+          </button>
+        </div>
       </div>
     </div>
   );

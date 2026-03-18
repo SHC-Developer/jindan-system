@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAllWorkLogs } from '../../hooks/useWorkLog';
 import { useUserList } from '../../hooks/useUserList';
-import { deleteWorkLog, clockOutWorkLog, endOvertime } from '../../lib/worklog';
+import { updateWorkLogByAdmin, type UpdateWorkLogByAdminPayload } from '../../lib/worklog';
 import { subscribeLeaveDays, approveLeaveDay, unapproveLeaveDay, type LeaveDayItem } from '../../lib/leaveDays';
 import { getHolidayDateKeys } from '../../lib/kr-holidays';
 import {
@@ -11,13 +11,12 @@ import {
   getTardinessMinutesSeoul,
   formatTardinessNote,
   getDayOfWeekSeoul,
-  getTodaySixTenSeoul,
-  getTodayElevenPmSeoul,
+  getWeeksInMonthByKoreanRule,
 } from '../../lib/datetime-seoul';
 import type { AppUser } from '../../types/user';
-import type { WorkLogEntry } from '../../types/worklog';
+import type { WorkLogEntry, WorkLogStatus } from '../../types/worklog';
 import { useErrorToast } from '../../hooks/useErrorToast';
-import { Loader2, Clock, CheckCircle, Database, Filter, Download, RotateCcw, CalendarCheck, Users } from 'lucide-react';
+import { Loader2, Clock, CheckCircle, Database, Filter, Download, CalendarCheck, Users } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
@@ -48,12 +47,50 @@ function formatDurationMs(ms: number): string {
   return `${h}h ${m}m`;
 }
 
+/** 출근 상태 라벨 → DB status (worklog 행 편집용) */
+const ATTENDANCE_STATUS_OPTIONS = ['정상출근', '지각', '결근', '연차', '반차'] as const;
+function attendanceStatusToDbStatus(s: string): WorkLogStatus {
+  if (s === '결근' || s === '연차' || s === '반차') return 'absent';
+  return 'approved'; // 정상출근, 지각
+}
+function attendanceStatusToLeaveType(s: string): 'annual' | 'half' | null {
+  if (s === '연차') return 'annual';
+  if (s === '반차') return 'half';
+  return null;
+}
+
+function msToTimeInputValue(ms: number | null): string {
+  if (ms == null) return '';
+  const str = new Date(ms).toLocaleTimeString('sv-SE', { timeZone: 'Asia/Seoul' });
+  return str.slice(0, 5);
+}
+function timeInputValueToMs(dateKey: string, timeStr: string): number | null {
+  if (!timeStr || !/^\d{1,2}:\d{2}$/.test(timeStr.trim())) return null;
+  return new Date(dateKey + 'T' + timeStr.trim() + ':00+09:00').getTime();
+}
+
+/** 점심 휴게 11:00~12:00(서울) 제외한 정규 근무 시간(ms). 출근일 기준 동일일 11~12시 구간만 제외. */
+function getRegularMsWithLunchDeduction(clockInAt: number, clockOutAt: number): number {
+  const raw = Math.max(0, clockOutAt - clockInAt);
+  const dateKey = toDateKeySeoul(clockInAt);
+  const lunchStart = new Date(dateKey + 'T11:00:00+09:00').getTime();
+  const lunchEnd = new Date(dateKey + 'T12:00:00+09:00').getTime();
+  const overlapStart = Math.max(clockInAt, lunchStart);
+  const overlapEnd = Math.min(clockOutAt, lunchEnd);
+  const deduction = Math.max(0, overlapEnd - overlapStart);
+  return Math.max(0, raw - deduction);
+}
+
 /** 주말·공휴일은 출근 시각과 관계없이 정상출근. holidayDateKeys는 선택(관리자 DB용). */
 function getAttendanceStatus(
   log: WorkLogEntry,
   holidayDateKeys?: Set<string>
 ): string {
-  if (log.status === 'absent') return '결근';
+  if (log.status === 'absent') {
+    if (log.leaveType === 'annual') return '연차';
+    if (log.leaveType === 'half') return '반차';
+    return '결근';
+  }
   if (log.status === 'pending') return '승인 대기';
   if (log.status === 'rejected') return '승인 거부';
   if (log.status === 'approved') {
@@ -90,9 +127,11 @@ interface WorkLogAdminViewProps {
 }
 
 type TabId = 'today' | 'database' | 'leaveApproval';
+type DatabaseViewMode = 'view' | 'edit';
 
 export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
   const [activeTab, setActiveTab] = useState<TabId>('today');
+  const [databaseViewMode, setDatabaseViewMode] = useState<DatabaseViewMode>('view');
   const [databaseAssigneeFilter, setDatabaseAssigneeFilter] = useState<Set<string> | null>(null);
   const [databaseFilterOpen, setDatabaseFilterOpen] = useState(false);
   const [databaseFilterPosition, setDatabaseFilterPosition] = useState<{ top: number; left: number } | null>(null);
@@ -100,42 +139,24 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     toDateKeySeoul(Date.now() - 30 * 24 * 60 * 60 * 1000)
   );
   const [endDate, setEndDate] = useState(() => toDateKeySeoul(Date.now()));
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [resetting, setResetting] = useState(false);
+  const [databaseSelectedYear, setDatabaseSelectedYear] = useState(() => new Date().getFullYear());
+  const [databaseSelectedMonth, setDatabaseSelectedMonth] = useState<number | null>(null);
+  const [databaseSelectedWeek, setDatabaseSelectedWeek] = useState<{
+    year: number;
+    month: number;
+    weekIndex: number;
+  } | null>(null);
   const [leaveByUser, setLeaveByUser] = useState<Map<string, LeaveDayItem[]>>(new Map());
   const [leaveApprovalLoading, setLeaveApprovalLoading] = useState<string | null>(null);
   const [holidayDateKeys, setHolidayDateKeys] = useState<Set<string>>(new Set());
   const databaseFilterRef = React.useRef<HTMLDivElement>(null);
   const databaseFilterDropdownRef = React.useRef<HTMLDivElement>(null);
+  const [editedRows, setEditedRows] = useState<Record<string, Partial<Pick<DbRow, 'attendanceStatus' | 'clockInAt' | 'clockOutAt' | 'overtimeStartAt' | 'overtimeEndAt' | 'note'>>>>({});
+  const [dbSaveLoading, setDbSaveLoading] = useState(false);
 
   const { workLogs: allLogs, loading: allLoading, error: allError } = useAllWorkLogs();
   const { users, loading: usersLoading } = useUserList();
-  const { showError } = useErrorToast();
-
-  // 관리자 페이지에서도 18:10 자동 퇴근·야근 06:00 자동 종료 보정 (전체 로그 대상, 새로고침 시 적용)
-  useEffect(() => {
-    if (allLogs.length === 0) return;
-    const now = Date.now();
-    const toFixClockOut = allLogs.filter(
-      (log) =>
-        log.clockOutAt == null &&
-        log.status === 'approved' &&
-        now >= getTodaySixTenSeoul(log.clockInAt)
-    );
-    toFixClockOut.forEach((log) => {
-      clockOutWorkLog(log.id, getTodaySixTenSeoul(log.clockInAt)).catch(console.error);
-    });
-    const toFixOvertime = allLogs.filter(
-      (log) =>
-        log.clockOutAt != null &&
-        log.overtimeStartAt != null &&
-        log.overtimeEndAt == null &&
-        now >= getTodayElevenPmSeoul(log.clockInAt)
-    );
-    toFixOvertime.forEach((log) => {
-      endOvertime(log.id, getTodayElevenPmSeoul(log.clockInAt)).catch(console.error);
-    });
-  }, [allLogs]);
+  const { showError, showSuccess } = useErrorToast();
 
   useEffect(() => {
     if (users.length === 0) {
@@ -288,9 +309,9 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     const rows: DbRow[] = filteredLogs.map((log) => {
       const key = toDateKeySeoul(log.clockInAt);
       const status = getAttendanceStatus(log, holidayDateKeys);
-      const note = status === '지각' ? formatTardinessNote(getTardinessMinutesSeoul(log.clockInAt)) : '';
+      const note = log.note ?? '';
       const regularMs =
-        log.clockOutAt != null ? Math.max(0, log.clockOutAt - log.clockInAt) : null;
+        log.clockOutAt != null ? getRegularMsWithLunchDeduction(log.clockInAt, log.clockOutAt) : null;
       const otMs =
         log.overtimeStartAt != null && log.overtimeEndAt != null
           ? log.overtimeEndAt - log.overtimeStartAt
@@ -359,42 +380,125 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     setDatabaseAssigneeFilter(next.size === allIds.length ? null : next);
   };
 
-  const handleResetInRange = async () => {
-    if (!selectedUserId || resetting) return;
-    const toDelete = allLogs.filter(
-      (log) =>
-        log.userId === selectedUserId &&
-        toDateKeySeoul(log.clockInAt) >= startDate &&
-        toDateKeySeoul(log.clockInAt) <= endDate
-    );
-    if (toDelete.length === 0) {
-      alert('선택한 기간에 해당 직원의 출퇴근 기록이 없습니다.');
-      return;
+  /** 전체 보기: 전체 선택 ↔ 전체 해제 토글 (드롭다운은 유지) */
+  const handleToggleFilterAll = () => {
+    if (databaseAssigneeFilter === null) {
+      setDatabaseAssigneeFilter(new Set());
+    } else {
+      setDatabaseAssigneeFilter(null);
     }
-    if (!confirm(`선택한 기간(${startDate} ~ ${endDate}) 내 해당 직원의 출퇴근 기록 ${toDelete.length}건을 모두 삭제합니다. 계속할까요?`)) return;
-    setResetting(true);
+  };
+
+  /** 월 클릭: 해당 월 전체 기간으로 설정 */
+  const handleSelectMonth = (month: number) => {
+    const y = databaseSelectedYear;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const lastDay = new Date(y, month, 0).getDate();
+    setDatabaseSelectedMonth(month);
+    setDatabaseSelectedWeek(null);
+    setStartDate(`${y}-${pad(month)}-01`);
+    setEndDate(`${y}-${pad(month)}-${pad(lastDay)}`);
+  };
+
+  /** N주차 클릭: 해당 주(월~일) 기간으로 설정 */
+  const handleSelectWeek = (year: number, month: number, weekIndex: number) => {
+    const weeks = getWeeksInMonthByKoreanRule(year, month);
+    const w = weeks.find((x) => x.weekIndex === weekIndex);
+    if (!w) return;
+    setDatabaseSelectedWeek({ year, month, weekIndex });
+    setStartDate(w.startDateKey);
+    setEndDate(w.endDateKey);
+  };
+
+  /** 기간 입력 직접 변경 시 월/주차 선택 해제 */
+  const handleStartDateChange = (value: string) => {
+    setDatabaseSelectedMonth(null);
+    setDatabaseSelectedWeek(null);
+    setStartDate(value);
+  };
+  const handleEndDateChange = (value: string) => {
+    setDatabaseSelectedMonth(null);
+    setDatabaseSelectedWeek(null);
+    setEndDate(value);
+  };
+
+  function getEffectiveValue<K extends keyof DbRow>(
+    r: DbRow,
+    field: K
+  ): DbRow[K] {
+    if (r.type !== 'worklog' || !r.logId) return r[field];
+    const ed = editedRows[r.logId];
+    return (ed && field in ed ? (ed as Partial<DbRow>)[field] : r[field]) as DbRow[K];
+  }
+  function setEditedValue(
+    logId: string,
+    field: keyof Pick<DbRow, 'attendanceStatus' | 'clockInAt' | 'clockOutAt' | 'overtimeStartAt' | 'overtimeEndAt' | 'note'>,
+    value: string | number | null
+  ) {
+    setEditedRows((prev) => ({
+      ...prev,
+      [logId]: { ...prev[logId], [field]: value },
+    }));
+  }
+
+  const handleSaveDbEdits = async () => {
+    const worklogRows = dbRows.filter((r): r is DbRow & { type: 'worklog'; logId: string } => r.type === 'worklog' && !!r.logId);
+    if (worklogRows.length === 0) return;
+    setDbSaveLoading(true);
     try {
-      await Promise.all(toDelete.map((log) => deleteWorkLog(log.id)));
+      for (const r of worklogRows) {
+        const status = getEffectiveValue(r, 'attendanceStatus');
+        const clockInAt = getEffectiveValue(r, 'clockInAt');
+        const clockOutAt = getEffectiveValue(r, 'clockOutAt');
+        const overtimeStartAt = getEffectiveValue(r, 'overtimeStartAt');
+        const overtimeEndAt = getEffectiveValue(r, 'overtimeEndAt');
+        const note = getEffectiveValue(r, 'note');
+        const payload: UpdateWorkLogByAdminPayload = {
+          status: attendanceStatusToDbStatus(status),
+          clockInAt: clockInAt ?? undefined,
+          clockOutAt: clockOutAt ?? undefined,
+          overtimeStartAt: overtimeStartAt ?? undefined,
+          overtimeEndAt: overtimeEndAt ?? undefined,
+          note: note ?? null,
+          leaveType: attendanceStatusToLeaveType(status),
+        };
+        await updateWorkLogByAdmin(r.logId, payload);
+      }
+      showSuccess('DB 수정 완료', '수정한 출퇴근 기록이 저장되었습니다.');
     } catch (err) {
-      showError('기록 삭제 실패', err);
+      showError('DB 수정 실패', err);
     } finally {
-      setResetting(false);
+      setDbSaveLoading(false);
+      setEditedRows({});
     }
   };
 
   const handleExportExcel = () => {
-    const data = dbRows.map((r) => ({
-      날짜: r.dateLabel,
-      출근상태: r.attendanceStatus,
-      출근시간: r.clockInAt != null ? formatTime(r.clockInAt) : '',
-      퇴근시간: r.clockOutAt != null ? formatTime(r.clockOutAt) : '',
-      야근시작: r.overtimeStartAt != null ? formatTime(r.overtimeStartAt) : '',
-      야근종료: r.overtimeEndAt != null ? formatTime(r.overtimeEndAt) : '',
-      총근무시간: r.totalMs != null ? formatDurationMs(r.totalMs) : '',
-      비고: r.note,
-      지각사유: r.tardinessReason ?? '',
-      야근사유: r.overtimeReason ?? '',
-    }));
+    const data = dbRows.map((r) => {
+      const status = getEffectiveValue(r, 'attendanceStatus');
+      const clockInAt = getEffectiveValue(r, 'clockInAt');
+      const clockOutAt = getEffectiveValue(r, 'clockOutAt');
+      const overtimeStartAt = getEffectiveValue(r, 'overtimeStartAt');
+      const overtimeEndAt = getEffectiveValue(r, 'overtimeEndAt');
+      const note = getEffectiveValue(r, 'note');
+      const regularMs =
+        clockOutAt != null && clockInAt != null ? getRegularMsWithLunchDeduction(clockInAt, clockOutAt) : null;
+      const otMs =
+        overtimeStartAt != null && overtimeEndAt != null ? overtimeEndAt - overtimeStartAt : null;
+      const totalMs = regularMs != null ? regularMs + (otMs ?? 0) : null;
+      return {
+        날짜: r.dateLabel,
+        출근상태: status,
+        출근시간: clockInAt != null ? formatTime(clockInAt) : '',
+        퇴근시간: clockOutAt != null ? formatTime(clockOutAt) : '',
+        야근시작: overtimeStartAt != null ? formatTime(overtimeStartAt) : '',
+        야근종료: overtimeEndAt != null ? formatTime(overtimeEndAt) : '',
+        총근무시간: totalMs != null ? formatDurationMs(totalMs) : '',
+        비고: note,
+        지각사유: r.tardinessReason ?? '',
+        야근사유: r.overtimeReason ?? '',
+      };
+    });
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, '출퇴근기록');
@@ -506,6 +610,31 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
 
         {activeTab === 'database' && (
           <section className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 pb-2">
+              <span className="text-sm text-gray-600 mr-2">데이터베이스:</span>
+              <button
+                type="button"
+                onClick={() => setDatabaseViewMode('view')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  databaseViewMode === 'view'
+                    ? 'bg-brand-main text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                확인
+              </button>
+              <button
+                type="button"
+                onClick={() => setDatabaseViewMode('edit')}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  databaseViewMode === 'edit'
+                    ? 'bg-brand-main text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                수정
+              </button>
+            </div>
             {allLoading || usersLoading ? (
               <p className="text-sm text-gray-500 flex items-center gap-2">
                 <Loader2 size={14} className="animate-spin" /> 불러오는 중…
@@ -513,8 +642,13 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-2 md:gap-4">
-                  <div ref={databaseFilterRef} className="relative inline-flex items-center gap-2">
-                    <span className="text-sm text-gray-700">담당자 (필터)</span>
+                  <div
+                    ref={databaseFilterRef}
+                    className={`relative inline-flex items-center gap-2 rounded-md border-2 px-2 py-1 ${
+                      databaseAssigneeFilter !== null ? 'border-brand-main bg-brand-main/5' : 'border-gray-400 bg-white'
+                    }`}
+                  >
+                    <span className="text-sm font-medium text-gray-700">담당자 (필터)</span>
                     <button
                       type="button"
                       onClick={() => {
@@ -524,7 +658,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                         }
                         setDatabaseFilterOpen((o) => !o);
                       }}
-                      className={`p-1.5 rounded border ${databaseAssigneeFilter !== null ? 'border-brand-main text-brand-main' : 'border-gray-300 text-gray-500'}`}
+                      className={`p-1.5 rounded border-2 ${databaseAssigneeFilter !== null ? 'border-brand-main text-brand-main' : 'border-gray-400 text-gray-600'}`}
                       title="담당자 필터"
                     >
                       <Filter size={16} />
@@ -539,13 +673,10 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                         >
                           <button
                             type="button"
-                            className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                            onClick={() => {
-                              setDatabaseAssigneeFilter(null);
-                              setDatabaseFilterOpen(false);
-                            }}
+                            className="w-full text-left px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            onClick={handleToggleFilterAll}
                           >
-                            전체 보기
+                            {databaseAssigneeFilter === null ? '전체 해제' : '전체 선택'}
                           </button>
                           {users.map((u) => (
                             <label
@@ -569,14 +700,14 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                     <input
                       type="date"
                       value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(e) => handleStartDateChange(e.target.value)}
                       className="border border-gray-300 rounded px-2 py-1 text-sm"
                     />
                     <span className="text-gray-500">~</span>
                     <input
                       type="date"
                       value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
+                      onChange={(e) => handleEndDateChange(e.target.value)}
                       className="border border-gray-300 rounded px-2 py-1 text-sm"
                     />
                   </div>
@@ -588,36 +719,63 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                     <Download size={14} />
                     엑셀 추출
                   </button>
-                </div>
-                <div className="flex flex-wrap items-center gap-4 py-3 border-y border-gray-200">
-                  <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">리셋 (기간 내 해당 직원 기록 삭제)</span>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-700">직원 선택</span>
-                    <select
-                      value={selectedUserId ?? ''}
-                      onChange={(e) => setSelectedUserId(e.target.value || null)}
-                      className="border border-gray-300 rounded px-2 py-1 text-sm min-w-[120px]"
-                    >
-                      <option value="">선택</option>
-                      {users.map((u) => (
-                        <option key={u.uid} value={u.uid}>
-                          {u.displayName ?? u.uid.slice(0, 8)}
-                        </option>
-                      ))}
-                    </select>
+                  {databaseViewMode === 'edit' && (
                     <button
                       type="button"
-                      onClick={handleResetInRange}
-                      disabled={!selectedUserId || resetting}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500 text-amber-700 text-sm font-medium hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={handleSaveDbEdits}
+                      disabled={dbSaveLoading || dbRows.filter((r) => r.type === 'worklog' && r.logId).length === 0}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {resetting ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
-                      출근 상태 리셋
+                      {dbSaveLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                      DB수정
                     </button>
-                  </div>
+                  )}
                 </div>
 
-                <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto shadow-sm">
+                <div className="flex flex-wrap items-center gap-2 md:gap-3 mt-3">
+                  <span className="text-sm font-medium text-gray-700">{databaseSelectedYear}년</span>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => handleSelectMonth(m)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border-2 ${
+                        databaseSelectedMonth === m
+                          ? 'border-brand-main bg-brand-main/10 text-brand-main'
+                          : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      {m}월
+                    </button>
+                  ))}
+                </div>
+
+                {databaseSelectedMonth !== null && (
+                  <div className="flex flex-wrap items-center gap-2 md:gap-3 mt-2">
+                    {getWeeksInMonthByKoreanRule(databaseSelectedYear, databaseSelectedMonth).map((w) => {
+                      const isSelected =
+                        databaseSelectedWeek?.year === databaseSelectedYear &&
+                        databaseSelectedWeek?.month === databaseSelectedMonth &&
+                        databaseSelectedWeek?.weekIndex === w.weekIndex;
+                      return (
+                        <button
+                          key={w.weekIndex}
+                          type="button"
+                          onClick={() => handleSelectWeek(databaseSelectedYear, databaseSelectedMonth, w.weekIndex)}
+                          className={`px-3 py-1.5 rounded-lg text-sm font-medium border-2 ${
+                            isSelected
+                              ? 'border-brand-sub bg-brand-sub/10 text-brand-sub'
+                              : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          {w.weekIndex}주차
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="bg-white border border-gray-200 rounded-xl overflow-x-auto shadow-sm mt-4">
                   <table className="w-full text-sm border-collapse min-w-[860px]">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
@@ -641,9 +799,12 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                             조건에 맞는 기록이 없습니다.
                           </td>
                         </tr>
-                      ) : (
+                      ) : databaseViewMode === 'view' ? (
                         dbRows.map((r) => (
-                          <tr key={r.type === 'worklog' ? r.logId! : `leave-${r.userId}-${r.dateKey}`} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50">
+                          <tr
+                            key={r.type === 'worklog' ? r.logId! : `leave-${r.userId}-${r.dateKey}`}
+                            className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50"
+                          >
                             <td className="py-2 px-2 text-gray-800 whitespace-nowrap">{r.dateLabel}</td>
                             <td className="py-2 px-2 text-gray-800 whitespace-nowrap">{r.userDisplayName ?? r.userId.slice(0, 8)}</td>
                             <td className="py-2 px-2 whitespace-nowrap">
@@ -653,7 +814,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                                     ? 'bg-brand-sub/20 text-brand-dark'
                                     : r.attendanceStatus === '지각'
                                       ? 'bg-amber-100 text-amber-800'
-                                      : r.attendanceStatus === '연차'
+                                      : r.attendanceStatus === '연차' || r.attendanceStatus === '반차'
                                         ? 'bg-gray-100 text-gray-700'
                                         : r.attendanceStatus === '결근'
                                           ? 'bg-red-100 text-red-800'
@@ -687,6 +848,156 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                             </td>
                           </tr>
                         ))
+                      ) : (
+                        dbRows.map((r) => {
+                          const isWorklog = r.type === 'worklog' && r.logId;
+                          const status = getEffectiveValue(r, 'attendanceStatus');
+                          const clockInAt = getEffectiveValue(r, 'clockInAt');
+                          const clockOutAt = getEffectiveValue(r, 'clockOutAt');
+                          const overtimeStartAt = getEffectiveValue(r, 'overtimeStartAt');
+                          const overtimeEndAt = getEffectiveValue(r, 'overtimeEndAt');
+                          const note = getEffectiveValue(r, 'note');
+                          const regularMs =
+                            clockOutAt != null && clockInAt != null
+                              ? getRegularMsWithLunchDeduction(clockInAt, clockOutAt)
+                              : null;
+                          const otMs =
+                            overtimeStartAt != null && overtimeEndAt != null
+                              ? overtimeEndAt - overtimeStartAt
+                              : null;
+                          const totalMs = regularMs != null ? regularMs + (otMs ?? 0) : null;
+                          return (
+                            <tr
+                              key={isWorklog ? r.logId! : `leave-${r.userId}-${r.dateKey}`}
+                              className="border-b border-gray-100 last:border-0 hover:bg-gray-50/50"
+                            >
+                              <td className="py-2 px-2 text-gray-800 whitespace-nowrap">{r.dateLabel}</td>
+                              <td className="py-2 px-2 text-gray-800 whitespace-nowrap">{r.userDisplayName ?? r.userId.slice(0, 8)}</td>
+                              <td className="py-2 px-2 whitespace-nowrap">
+                                {isWorklog ? (
+                                  <select
+                                    value={status}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      if (v === '정상출근') {
+                                        const nine = timeInputValueToMs(r.dateKey, '09:00');
+                                        const six = timeInputValueToMs(r.dateKey, '18:00');
+                                        setEditedRows((prev) => ({
+                                          ...prev,
+                                          [r.logId!]: {
+                                            ...prev[r.logId!],
+                                            attendanceStatus: v,
+                                            clockInAt: nine ?? getEffectiveValue(r, 'clockInAt'),
+                                            clockOutAt: six ?? getEffectiveValue(r, 'clockOutAt'),
+                                          },
+                                        }));
+                                      } else {
+                                        setEditedValue(r.logId!, 'attendanceStatus', v);
+                                      }
+                                    }}
+                                    className="w-full min-w-[6rem] border border-gray-300 rounded px-1.5 py-1 text-sm"
+                                  >
+                                    {ATTENDANCE_STATUS_OPTIONS.map((opt) => (
+                                      <option key={opt} value={opt}>
+                                        {opt}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span
+                                    className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                                      r.attendanceStatus === '연차' || r.attendanceStatus === '반차' ? 'bg-gray-100 text-gray-700' : ''
+                                    }`}
+                                  >
+                                    {r.attendanceStatus}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
+                                {isWorklog ? (
+                                  <input
+                                    type="time"
+                                    value={msToTimeInputValue(clockInAt)}
+                                    onChange={(e) => {
+                                      const ms = timeInputValueToMs(r.dateKey, e.target.value);
+                                      setEditedValue(r.logId!, 'clockInAt', ms ?? clockInAt);
+                                    }}
+                                    className="w-full min-w-[5rem] border border-gray-300 rounded px-1.5 py-1 text-sm"
+                                  />
+                                ) : (
+                                  r.clockInAt != null ? formatTime(r.clockInAt) : '-'
+                                )}
+                              </td>
+                              <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
+                                {isWorklog ? (
+                                  <input
+                                    type="time"
+                                    value={msToTimeInputValue(clockOutAt)}
+                                    onChange={(e) => {
+                                      const ms = timeInputValueToMs(r.dateKey, e.target.value);
+                                      setEditedValue(r.logId!, 'clockOutAt', ms ?? clockOutAt);
+                                    }}
+                                    className="w-full min-w-[5rem] border border-gray-300 rounded px-1.5 py-1 text-sm"
+                                  />
+                                ) : (
+                                  r.clockOutAt != null ? formatTime(r.clockOutAt) : '-'
+                                )}
+                              </td>
+                              <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
+                                {isWorklog ? (
+                                  <input
+                                    type="time"
+                                    value={msToTimeInputValue(overtimeStartAt)}
+                                    onChange={(e) => {
+                                      const ms = timeInputValueToMs(r.dateKey, e.target.value);
+                                      setEditedValue(r.logId!, 'overtimeStartAt', ms ?? overtimeStartAt);
+                                    }}
+                                    className="w-full min-w-[5rem] border border-gray-300 rounded px-1.5 py-1 text-sm"
+                                  />
+                                ) : (
+                                  r.overtimeStartAt != null ? formatTime(r.overtimeStartAt) : '-'
+                                )}
+                              </td>
+                              <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
+                                {isWorklog ? (
+                                  <input
+                                    type="time"
+                                    value={msToTimeInputValue(overtimeEndAt)}
+                                    onChange={(e) => {
+                                      const ms = timeInputValueToMs(r.dateKey, e.target.value);
+                                      setEditedValue(r.logId!, 'overtimeEndAt', ms ?? overtimeEndAt);
+                                    }}
+                                    className="w-full min-w-[5rem] border border-gray-300 rounded px-1.5 py-1 text-sm"
+                                  />
+                                ) : (
+                                  r.overtimeEndAt != null ? formatTime(r.overtimeEndAt) : '-'
+                                )}
+                              </td>
+                              <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
+                                {totalMs != null ? formatDurationMs(totalMs) : '-'}
+                              </td>
+                              <td className="py-2 px-2 text-gray-700 whitespace-nowrap">
+                                {isWorklog ? (
+                                  <input
+                                    type="text"
+                                    value={note}
+                                    onChange={(e) => setEditedValue(r.logId!, 'note', e.target.value)}
+                                    placeholder="관리자 수정 사유"
+                                    className="w-full min-w-[8rem] max-w-[200px] border border-gray-300 rounded px-1.5 py-1 text-sm"
+                                  />
+                                ) : (
+                                  r.note || '-'
+                                )}
+                              </td>
+                              <td className="py-2 px-2 text-gray-600 min-w-[140px] max-w-[280px] whitespace-normal break-words align-top">
+                                {r.tardinessReason ?? '-'}
+                              </td>
+                              <td className="py-2 px-2 text-gray-600 min-w-[140px] max-w-[280px] whitespace-normal break-words align-top">
+                                {r.overtimeReason ?? '-'}
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>

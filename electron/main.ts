@@ -466,13 +466,21 @@ function createWindow(loadUrl?: string): void {
     closeSplashWindow();
   });
 
+  const distIndexPath = path.join(__dirname, '../dist/index.html');
+
   if (isDev) {
     mainWindow.loadURL('http://localhost:3000/jindan-system/');
     mainWindow.webContents.openDevTools();
   } else if (loadUrl) {
     mainWindow.loadURL(loadUrl);
+    // 인터넷 끊김 시 localhost 로드가 ERR_INTERNET_DISCONNECTED로 실패하는 경우 로컬 파일로 폴백
+    mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
+      if (errorCode === -106 || /ERR_INTERNET_DISCONNECTED/i.test(errorDescription)) {
+        mainWindow?.loadFile(distIndexPath);
+      }
+    });
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadFile(distIndexPath);
   }
 
   mainWindow.on('close', (event) => {

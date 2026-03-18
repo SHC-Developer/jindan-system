@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useTodayWorkLog, useMyWorkLogs } from '../../hooks/useWorkLog';
 import { useLeaveDays } from '../../hooks/useLeaveDays';
 import {
@@ -18,8 +18,6 @@ import {
   getFiveAmSeoul,
   getNineTenSeoul,
   getTodaySixSeoul,
-  getTodaySixTenSeoul,
-  getTodayElevenPmSeoul,
   isWeekdaySeoul,
   isTardySeoul,
   getWeekRangeSeoul,
@@ -63,9 +61,6 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const [overtimeReason, setOvertimeReason] = useState('');
   const [overtimeTargetLogId, setOvertimeTargetLogId] = useState<string | null>(null);
   const [isDirectOvertime, setIsDirectOvertime] = useState(false);
-
-  const autoClockOutProcessed = useRef(new Set<string>());
-  const autoOvertimeEndProcessed = useRef(new Set<string>());
 
   const { addToast } = useToastContext();
   const { showError } = useErrorToast();
@@ -225,64 +220,6 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
         : now - todayLog.overtimeStartAt
       : 0;
   const todayWorkMs = regularMs + overtimeMs;
-
-  // 실시간: 오늘 로그(출근 처리된 것만)에 대해 18:10 지나면 자동 퇴근 (18:10 이후 출근 건은 제외)
-  useEffect(() => {
-    if (!todayLog || todayLog.status !== 'approved' || todayLog.clockOutAt != null) return;
-    const sixTen = getTodaySixTenSeoul(now);
-    if (todayLog.clockInAt >= sixTen) return;
-    if (now >= sixTen) {
-      clockOutWorkLog(todayLog.id, sixTen).catch(console.error);
-    }
-  }, [todayLog?.id, todayLog?.status, todayLog?.clockOutAt, todayLog?.clockInAt, now]);
-
-  // 보정: 퇴근 미처리 건 중 출근일 기준 18:10이 이미 지난 건 모두 18:10으로 자동 퇴근 (18:10 이후 출근 건은 제외)
-  useEffect(() => {
-    const toFix = workLogs.filter(
-      (log) =>
-        log.clockOutAt == null &&
-        log.status === 'approved' &&
-        log.clockInAt < getTodaySixTenSeoul(log.clockInAt) &&
-        now >= getTodaySixTenSeoul(log.clockInAt) &&
-        !autoClockOutProcessed.current.has(log.id)
-    );
-    toFix.forEach((log) => {
-      autoClockOutProcessed.current.add(log.id);
-      clockOutWorkLog(log.id, getTodaySixTenSeoul(log.clockInAt)).catch(console.error);
-    });
-  }, [workLogs, now]);
-
-  // 실시간: 오늘 로그(출근 처리된 것만)에 대해 야근 중이면 당일 23:00 지나면 자동 종료
-  useEffect(() => {
-    if (
-      !todayLog ||
-      todayLog.status !== 'approved' ||
-      !todayLog.clockOutAt ||
-      !todayLog.overtimeStartAt ||
-      todayLog.overtimeEndAt != null
-    )
-      return;
-    const elevenPm = getTodayElevenPmSeoul(todayLog.clockInAt);
-    if (now >= elevenPm) {
-      endOvertime(todayLog.id, elevenPm).catch(console.error);
-    }
-  }, [todayLog?.id, todayLog?.status, todayLog?.clockInAt, todayLog?.clockOutAt, todayLog?.overtimeStartAt, todayLog?.overtimeEndAt, now]);
-
-  // 보정: 야근 시작 후 미종료 건 중 출근일 기준 당일 23:00이 이미 지난 건 모두 23:00으로 자동 종료
-  useEffect(() => {
-    const toFix = workLogs.filter(
-      (log) =>
-        log.clockOutAt != null &&
-        log.overtimeStartAt != null &&
-        log.overtimeEndAt == null &&
-        now >= getTodayElevenPmSeoul(log.clockInAt) &&
-        !autoOvertimeEndProcessed.current.has(log.id)
-    );
-    toFix.forEach((log) => {
-      autoOvertimeEndProcessed.current.add(log.id);
-      endOvertime(log.id, getTodayElevenPmSeoul(log.clockInAt)).catch(console.error);
-    });
-  }, [workLogs, now]);
 
   const handleOvertimeSubmit = useCallback(async () => {
     const reason = overtimeReason.trim();

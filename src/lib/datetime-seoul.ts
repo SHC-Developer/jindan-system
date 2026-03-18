@@ -120,3 +120,50 @@ export function getWeekRangeSeoul(nowMs: number): { start: number; end: number }
   const end = start + 7 * 24 * 60 * 60 * 1000 - 1;
   return { start, end };
 }
+
+/** dateKey(YYYY-MM-DD) 기준으로 days일 더한 날의 dateKey (서울 기준) */
+function addDaysToDateKey(dateKey: string, days: number): string {
+  const ms = new Date(dateKey + 'T12:00:00+09:00').getTime() + days * 24 * 60 * 60 * 1000;
+  return new Date(ms).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+}
+
+/**
+ * 한국 표준 주간 수 결정법: 해당 월에 속하는 주들.
+ * 한 주(월~일)가 두 달에 걸쳐 있으면, 그 주에 해당 월 날짜가 4일 이상인 경우만 그 달의 주로 포함.
+ * @returns 1주차, 2주차, ... (해당 월에 4주 또는 5주)
+ */
+export function getWeeksInMonthByKoreanRule(
+  year: number,
+  month: number
+): Array<{ weekIndex: number; startDateKey: string; endDateKey: string }> {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const firstDateKey = `${year}-${pad(month)}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const lastDateKey = `${year}-${pad(month)}-${pad(lastDay)}`;
+
+  const firstMs = new Date(firstDateKey + 'T12:00:00+09:00').getTime();
+  const dayOfWeek = getDayOfWeekSeoul(firstMs);
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  let mondayKey = addDaysToDateKey(firstDateKey, -daysToMonday);
+
+  const result: Array<{ weekIndex: number; startDateKey: string; endDateKey: string }> = [];
+
+  while (mondayKey <= lastDateKey) {
+    const sundayKey = addDaysToDateKey(mondayKey, 6);
+    let count = 0;
+    for (let d = 0; d < 7; d++) {
+      const dKey = addDaysToDateKey(mondayKey, d);
+      if (dKey >= firstDateKey && dKey <= lastDateKey) count += 1;
+    }
+    if (count >= 4) {
+      result.push({
+        weekIndex: result.length + 1,
+        startDateKey: mondayKey,
+        endDateKey: sundayKey,
+      });
+    }
+    mondayKey = addDaysToDateKey(mondayKey, 7);
+  }
+
+  return result;
+}

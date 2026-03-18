@@ -19,6 +19,8 @@ function dataToWorkLogEntry(id: string, data: Record<string, unknown>): WorkLogE
     overtimeStartAt: (data.overtimeStartAt as number | null) ?? null,
     overtimeEndAt: (data.overtimeEndAt as number | null) ?? null,
     overtimeReason: (data.overtimeReason as string | null) ?? null,
+    note: (data.note as string | null) ?? null,
+    leaveType: (data.leaveType === 'annual' || data.leaveType === 'half' ? data.leaveType : null) ?? null,
   };
 }
 

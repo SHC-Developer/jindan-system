@@ -17,4 +17,8 @@ export interface WorkLogEntry {
   overtimeEndAt: number | null;
   /** 야근 시작 시 사용자가 입력한 사유 */
   overtimeReason: string | null;
+  /** 관리자 비고 (수정 사유 등) */
+  note: string | null;
+  /** 연차/반차 구분 (status가 absent일 때만 사용). null이면 결근 */
+  leaveType: 'annual' | 'half' | null;
 }

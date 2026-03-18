@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getDayOfWeekSeoul } from '../../lib/datetime-seoul';
 import { getHolidayDateKeys } from '../../lib/kr-holidays';
 import { useSharedCalendarEvents } from '../../hooks/useSharedCalendarEvents';
@@ -29,6 +29,17 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
   const [addModalDateKeyOverride, setAddModalDateKeyOverride] = useState<string | null>(null);
   const [detailEvent, setDetailEvent] = useState<SharedCalendarEvent | null>(null);
   const [holidayDateKeys, setHolidayDateKeys] = useState<Set<string>>(new Set());
+  const [isTabletCalendar, setIsTabletCalendar] = useState(false);
+
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      setIsTabletCalendar(w >= 425 && w < 768);
+    };
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   useEffect(() => {
     const [y, m] = calendarMonth.split('-').map(Number);
@@ -98,6 +109,19 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
     const nextYear = month === 12 ? year + 1 : year;
     const dateKey = `${nextYear}-${String(nextMonth).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     calendarDays.push({ dateKey, day: d, isCurrentMonth: false });
+  }
+
+  const calendarDaysNoNext = calendarDays.slice(0, startPad + daysInMonth);
+  const tabletWeekCount = Math.ceil(calendarDaysNoNext.length / 7);
+  const tabletWeeks: { dateKey: string; day: number; isCurrentMonth: boolean }[][] = [];
+  for (let w = 0; w < tabletWeekCount; w++) {
+    const start = w * 7;
+    const slice = calendarDaysNoNext.slice(start, start + 7);
+    const padded = [...slice];
+    while (padded.length < 7) {
+      padded.push({ dateKey: '', day: 0, isCurrentMonth: false });
+    }
+    tabletWeeks.push(padded);
   }
 
   const todayKey = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
@@ -220,36 +244,70 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
 
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-            <div>
-              <h2 className="text-lg font-semibold text-brand-dark">일정</h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  const [y, m] = calendarMonth.split('-').map(Number);
-                  if (m <= 1) setCalendarMonth(`${y - 1}-12`);
-                  else setCalendarMonth(`${y}-${String(m - 1).padStart(2, '0')}`);
-                }}
-                className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded min-w-[44px] min-h-[44px] flex items-center justify-center md:min-w-0 md:min-h-0"
-              >
-                이전
-              </button>
-              <span className="text-sm font-medium text-gray-700 min-w-[120px] text-center">
-                {year}년 {month}월
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  const [y, m] = calendarMonth.split('-').map(Number);
-                  if (m >= 12) setCalendarMonth(`${y + 1}-01`);
-                  else setCalendarMonth(`${y}-${String(m + 1).padStart(2, '0')}`);
-                }}
-                className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded min-w-[44px] min-h-[44px] flex items-center justify-center md:min-w-0 md:min-h-0"
-              >
-                다음
-              </button>
-            </div>
+            {isTabletCalendar ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const [y, m] = calendarMonth.split('-').map(Number);
+                    if (m <= 1) setCalendarMonth(`${y - 1}-12`);
+                    else setCalendarMonth(`${y}-${String(m - 1).padStart(2, '0')}`);
+                  }}
+                  className="p-2 text-gray-600 hover:bg-gray-100 rounded min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  aria-label="이전 달"
+                >
+                  <ChevronLeft size={20} />
+                </button>
+                <span className="text-lg font-semibold text-brand-dark flex-1 text-center">
+                  {month}월
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const [y, m] = calendarMonth.split('-').map(Number);
+                    if (m >= 12) setCalendarMonth(`${y + 1}-01`);
+                    else setCalendarMonth(`${y}-${String(m + 1).padStart(2, '0')}`);
+                  }}
+                  className="p-2 text-gray-600 hover:bg-gray-100 rounded min-w-[44px] min-h-[44px] flex items-center justify-center"
+                  aria-label="다음 달"
+                >
+                  <ChevronRight size={20} />
+                </button>
+              </>
+            ) : (
+              <>
+                <div>
+                  <h2 className="text-lg font-semibold text-brand-dark">일정</h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const [y, m] = calendarMonth.split('-').map(Number);
+                      if (m <= 1) setCalendarMonth(`${y - 1}-12`);
+                      else setCalendarMonth(`${y}-${String(m - 1).padStart(2, '0')}`);
+                    }}
+                    className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded min-w-[44px] min-h-[44px] flex items-center justify-center md:min-w-0 md:min-h-0"
+                  >
+                    이전
+                  </button>
+                  <span className="text-sm font-medium text-gray-700 min-w-[120px] text-center">
+                    {year}년 {month}월
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const [y, m] = calendarMonth.split('-').map(Number);
+                      if (m >= 12) setCalendarMonth(`${y + 1}-01`);
+                      else setCalendarMonth(`${y}-${String(m + 1).padStart(2, '0')}`);
+                    }}
+                    className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded min-w-[44px] min-h-[44px] flex items-center justify-center md:min-w-0 md:min-h-0"
+                  >
+                    다음
+                  </button>
+                </div>
+              </>
+            )}
           </div>
           <div className="p-4">
             <div className="grid grid-cols-7 gap-1 text-sm">
@@ -267,29 +325,28 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
                   {w}
                 </div>
               ))}
-              {Array.from({ length: 6 }, (_, weekIdx) => {
-                const weekStart = weekIdx * 7;
-                const weekCells = calendarDays.slice(weekStart, weekStart + 7);
-                const weekDateKeys = weekCells.map((c) => c.dateKey);
+              {(isTabletCalendar ? tabletWeeks : Array.from({ length: 6 }, (_, weekIdx) => calendarDays.slice(weekIdx * 7, weekIdx * 7 + 7))).map((weekCells, weekIdx) => {
+                const weekDateKeys = weekCells.map((c) => c.dateKey).filter(Boolean);
                 const weekMultiDay = multiDayEvents.filter((ev) => {
                   const startKey = ev.startDateKey ?? ev.dateKey;
                   const endKey = ev.endDateKey ?? ev.dateKey;
-                  return weekDateKeys.some(
-                    (dk) => dk >= startKey && dk <= endKey
-                  );
+                  return weekDateKeys.some((dk) => dk >= startKey && dk <= endKey);
                 });
                 const barRowCount = Math.min(weekMultiDay.length, 4);
                 const weekRowCount = barRowCount + 2;
                 return (
                   <div
                     key={weekIdx}
-                    className="col-span-7 grid gap-1 min-h-[90px] p-1 -mx-1"
+                    className={`col-span-7 grid gap-1 p-1 -mx-1 ${isTabletCalendar ? 'min-h-[120px]' : 'min-h-[90px]'}`}
                     style={{
                       gridTemplateColumns: 'repeat(7, 1fr)',
                       gridTemplateRows: `repeat(${weekRowCount}, minmax(0, auto))`,
                     }}
                   >
                     {weekCells.map(({ dateKey, day, isCurrentMonth }, colIdx) => {
+                      if (!dateKey) {
+                        return <div key={`empty-${weekIdx}-${colIdx}`} style={{ gridColumn: colIdx + 1, gridRow: 1 }} />;
+                      }
                       const dayMs = new Date(dateKey + 'T12:00:00+09:00').getTime();
                       const dayOfWeek = getDayOfWeekSeoul(dayMs);
                       const isSun = dayOfWeek === 0;
@@ -312,10 +369,10 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
                             handleDateClick(dateKey);
                             handleOpenAddModal(dateKey);
                           }}
-                          className={`p-1 rounded-t-md flex flex-col items-stretch text-left transition-colors hover:bg-gray-100 cursor-pointer ${dayColor} ${dateKey === todayKey && selectedDateKey !== dateKey ? 'ring-2 ring-brand-main ring-inset' : ''}`}
+                          className={`p-1 rounded-t-md flex flex-col items-center justify-center text-center transition-colors hover:bg-gray-100 cursor-pointer ${dayColor} ${dateKey === todayKey && selectedDateKey !== dateKey ? 'ring-2 ring-brand-main ring-inset' : ''}`}
                           style={{ gridColumn: colIdx + 1, gridRow: 1 }}
                         >
-                          <span className="text-sm font-medium">
+                          <span className={`font-medium ${isTabletCalendar ? 'text-xs' : 'text-sm'}`}>
                             {day}
                             {isHoliday && isCurrentMonth && (
                               <span className="ml-0.5 text-[10px] opacity-80" title="공휴일">휴</span>
@@ -329,8 +386,9 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
                       const endKey = ev.endDateKey ?? ev.dateKey;
                       let startCol = 7;
                       let endCol = -1;
-                      weekDateKeys.forEach((dk, ci) => {
-                        if (dk >= startKey && dk <= endKey) {
+                      weekCells.forEach((cell, ci) => {
+                        const dk = cell.dateKey;
+                        if (dk && dk >= startKey && dk <= endKey) {
                           startCol = Math.min(startCol, ci);
                           endCol = Math.max(endCol, ci);
                         }
@@ -344,7 +402,7 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
                           role="button"
                           tabIndex={0}
                           title={ev.title}
-                          className={`text-xs rounded px-1 py-0.5 cursor-pointer text-center leading-5 line-clamp-2 break-words overflow-hidden min-w-0 ${barClass}`}
+                          className={`rounded px-1 py-0.5 cursor-pointer text-left leading-5 line-clamp-2 break-words overflow-hidden min-w-0 ${barClass} ${isTabletCalendar ? 'text-[10px]' : 'text-xs'}`}
                           style={{
                             gridColumn: `${startCol + 1} / ${endCol + 2}`,
                             gridRow: rowIdx + 2,
@@ -362,6 +420,9 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
                       );
                     })}
                     {weekCells.map(({ dateKey }, colIdx) => {
+                      if (!dateKey) {
+                        return <div key={`ev-empty-${weekIdx}-${colIdx}`} style={{ gridColumn: colIdx + 1, gridRow: barRowCount + 2 }} />;
+                      }
                       const dayEvents = singleDayEventsByDateKey.get(dateKey) ?? [];
                       const isSelected = selectedDateKey === dateKey;
                       const maxVisibleDesktop = 3;
@@ -390,7 +451,7 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
                                       role="button"
                                       tabIndex={0}
                                       title={ev.title}
-                                      className={`text-xs rounded px-1 py-0.5 cursor-pointer leading-5 line-clamp-2 break-words overflow-hidden min-w-0 ${badgeClass} ${idx >= maxVisibleMobile ? 'hidden md:block' : ''}`}
+                                      className={`rounded px-1 py-0.5 cursor-pointer leading-5 line-clamp-2 break-words overflow-hidden min-w-0 text-left ${badgeClass} ${isTabletCalendar ? 'text-[10px]' : 'text-xs'} ${idx >= maxVisibleMobile ? 'hidden md:block' : ''}`}
                                       onClick={(e) => handleOpenDetailModal(ev, e)}
                                       onKeyDown={(e) => {
                                         if (e.key === 'Enter' || e.key === ' ') {
@@ -404,7 +465,7 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
                                   );
                                 })}
                                 {overflowMobile && (
-                                  <span className="text-xs text-gray-500 md:hidden">
+                                  <span className={`text-gray-500 md:hidden ${isTabletCalendar ? 'text-[10px]' : 'text-xs'}`}>
                                     +{dayEvents.length - maxVisibleMobile}
                                   </span>
                                 )}
@@ -421,10 +482,10 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
                     })}
                     {weekCells.map(({ dateKey }, colIdx) => (
                       <div
-                        key={`border-${dateKey}`}
+                        key={`border-${weekIdx}-${colIdx}-${dateKey || 'empty'}`}
                         aria-hidden
                         className={`pointer-events-none rounded-md transition-colors ${
-                          selectedDateKey === dateKey ? 'border-2 border-brand-main' : ''
+                          dateKey && selectedDateKey === dateKey ? 'border-2 border-brand-main' : ''
                         }`}
                         style={{
                           gridColumn: colIdx + 1,

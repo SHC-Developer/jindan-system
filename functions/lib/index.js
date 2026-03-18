@@ -9,6 +9,16 @@ const HOLIDAYS_CDN = 'https://raw.githubusercontent.com/hyunbinseo/holidays-kr/m
 function getTodayKeySeoul(now) {
     return now.toLocaleDateString('en-CA', { timeZone: TIMEZONE });
 }
+/** clockInAt(ms) 기준 서울 해당일 18:00 의 ms. 자동 퇴근 시각용. */
+function getTodaySixSeoul(clockInAtMs) {
+    const dateKey = new Date(clockInAtMs).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+    return new Date(dateKey + 'T18:00:00+09:00').getTime();
+}
+/** clockInAt(ms) 기준 서울 해당일 23:00 의 ms. 야근 자동 종료 시각용. */
+function getTodayElevenPmSeoul(clockInAtMs) {
+    const dateKey = new Date(clockInAtMs).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+    return new Date(dateKey + 'T23:00:00+09:00').getTime();
+}
 function getDayOfWeekSeoul(dateKey) {
     const d = new Date(dateKey + 'T12:00:00+09:00');
     return d.getDay();
@@ -117,13 +127,18 @@ export const workLogAction = onCall({ region: 'asia-northeast3' }, async (reques
             const logId = params.logId;
             const clockOutAtMs = params.clockOutAtMs ?? Date.now();
             const ref = db.collection('workLogs').doc(logId);
-            const docSnap = await ref.get();
-            if (!docSnap.exists)
-                throw new HttpsError('not-found', '해당 출퇴근 기록을 찾을 수 없습니다.');
-            if (docSnap.data()?.userId !== uid) {
-                throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
-            }
-            await ref.update({ clockOutAt: clockOutAtMs });
+            await db.runTransaction(async (tx) => {
+                const docSnap = await tx.get(ref);
+                if (!docSnap.exists)
+                    throw new HttpsError('not-found', '해당 출퇴근 기록을 찾을 수 없습니다.');
+                const data = docSnap.data();
+                if (data?.userId !== uid) {
+                    throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
+                }
+                if (data?.clockOutAt != null)
+                    return;
+                tx.update(ref, { clockOutAt: clockOutAtMs });
+            });
             return {};
         }
         case 'startOvertime': {
@@ -146,13 +161,18 @@ export const workLogAction = onCall({ region: 'asia-northeast3' }, async (reques
             const logId = params.logId;
             const endAtMs = params.endAtMs ?? Date.now();
             const ref = db.collection('workLogs').doc(logId);
-            const docSnap = await ref.get();
-            if (!docSnap.exists)
-                throw new HttpsError('not-found', '해당 출퇴근 기록을 찾을 수 없습니다.');
-            if (docSnap.data()?.userId !== uid) {
-                throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
-            }
-            await ref.update({ overtimeEndAt: endAtMs });
+            await db.runTransaction(async (tx) => {
+                const docSnap = await tx.get(ref);
+                if (!docSnap.exists)
+                    throw new HttpsError('not-found', '해당 출퇴근 기록을 찾을 수 없습니다.');
+                const data = docSnap.data();
+                if (data?.userId !== uid) {
+                    throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
+                }
+                if (data?.overtimeEndAt != null)
+                    return;
+                tx.update(ref, { overtimeEndAt: endAtMs });
+            });
             return {};
         }
         case 'createOvertimeOnlyWorkLog': {
@@ -245,6 +265,68 @@ export const ensureTodayAbsentWorkLogs = onSchedule({ schedule: '0 0 * * *', tim
             tardinessReason: null,
             overtimeStartAt: null,
             overtimeEndAt: null,
+        });
+    }
+});
+/**
+ * 매일 18:00(서울)에 실행. 퇴근 미처리 건(approved, clockOutAt==null) 중
+ * 출근일 18:00이 이미 지난 건만 해당일 18:00으로 자동 퇴근. 수동 퇴근된 건은 트랜잭션으로 덮어쓰지 않음.
+ */
+export const autoClockOutAtSix = onSchedule({ schedule: '0 18 * * *', timeZone: 'Asia/Seoul' }, async () => {
+    const db = getFirestore();
+    const now = Date.now();
+    const snap = await db.collection('workLogs')
+        .where('status', '==', 'approved')
+        .where('clockOutAt', '==', null)
+        .get();
+    for (const doc of snap.docs) {
+        const data = doc.data();
+        const clockInAt = data.clockInAt;
+        const sixMs = getTodaySixSeoul(clockInAt);
+        if (clockInAt >= sixMs)
+            continue;
+        if (sixMs > now)
+            continue;
+        const ref = doc.ref;
+        await db.runTransaction(async (tx) => {
+            const fresh = await tx.get(ref);
+            if (!fresh.exists)
+                return;
+            const d = fresh.data();
+            if (d?.clockOutAt != null)
+                return;
+            tx.update(ref, { clockOutAt: sixMs });
+        });
+    }
+});
+/**
+ * 매일 23:00(서울)에 실행. 야근 미종료 건(overtimeStartAt 있음, overtimeEndAt==null) 중
+ * 출근일 23:00이 이미 지난 건만 해당일 23:00으로 자동 종료. 수동 종료된 건은 트랜잭션으로 덮어쓰지 않음.
+ */
+export const autoEndOvertimeAtEleven = onSchedule({ schedule: '0 23 * * *', timeZone: 'Asia/Seoul' }, async () => {
+    const db = getFirestore();
+    const now = Date.now();
+    const snap = await db.collection('workLogs')
+        .where('overtimeEndAt', '==', null)
+        .get();
+    for (const doc of snap.docs) {
+        const data = doc.data();
+        const overtimeStartAt = data.overtimeStartAt;
+        if (overtimeStartAt == null)
+            continue;
+        const clockInAt = data.clockInAt;
+        const elevenPmMs = getTodayElevenPmSeoul(clockInAt);
+        if (elevenPmMs > now)
+            continue;
+        const ref = doc.ref;
+        await db.runTransaction(async (tx) => {
+            const fresh = await tx.get(ref);
+            if (!fresh.exists)
+                return;
+            const d = fresh.data();
+            if (d?.overtimeEndAt != null)
+                return;
+            tx.update(ref, { overtimeEndAt: elevenPmMs });
         });
     }
 });
