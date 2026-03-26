@@ -3,8 +3,6 @@ import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-const ALLOWED_OFFICE_IPS = ['211.170.156.173'];
-
 initializeApp();
 
 const TIMEZONE = 'Asia/Seoul';
@@ -43,32 +41,14 @@ async function getHolidayDateKeys(year: number): Promise<Set<string>> {
   return set;
 }
 
-function getClientIp(request: { rawRequest?: { headers?: Record<string, string | string[] | undefined>; ip?: string } }): string {
-  const raw = request.rawRequest;
-  if (!raw) return '';
-  const forwarded = raw.headers?.['x-forwarded-for'];
-  if (forwarded) {
-    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded;
-    return String(first).split(',')[0].trim();
-  }
-  return raw.ip ?? '';
-}
-
 /**
- * 직원 출퇴근 액션 (사무실 IP에서만 허용). Callable.
+ * 직원 출퇴근 액션. Callable.
  */
 export const workLogAction = onCall(
   { region: 'asia-northeast3' },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', '로그인이 필요합니다.');
-    }
-    const clientIp = getClientIp(request);
-    if (!ALLOWED_OFFICE_IPS.includes(clientIp)) {
-      throw new HttpsError(
-        'failed-precondition',
-        '사무실 네트워크에서만 출퇴근 기록을 할 수 있습니다.'
-      );
     }
 
     const db = getFirestore();

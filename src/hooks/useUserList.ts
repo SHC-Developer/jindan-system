@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { onSnapshot, query, where } from 'firebase/firestore';
 import { getUsersRef } from '../lib/firestore-paths';
+import type { UserRole } from '../types/user';
 
 /** 직원 목록 항목 (관리자 페이지 등에서 사용). photoURL은 Firestore users 문서 기준으로 실시간 반영됨 */
 export interface UserListItem {
@@ -10,15 +11,25 @@ export interface UserListItem {
   email: string | null;
   /** 프로필 이미지 URL. 사용자가 프로필 사진을 변경하면 실시간으로 반영됨 */
   photoURL: string | null;
+  /** Firestore users.role — 자동 결근 생성 대상은 general 뿐 (Cloud Functions와 동일) */
+  role: UserRole;
+  /** Firestore users.specialist */
+  isSpecialist: boolean;
 }
 
 function parseUserDoc(id: string, data: Record<string, unknown>): UserListItem {
+  const roleRaw = data.role as string | undefined;
+  const role: UserRole = roleRaw === 'admin' ? 'admin' : 'general';
+  const spec = data.specialist;
+  const isSpecialist = spec === true || String(spec).toLowerCase() === 'true';
   return {
     uid: id,
     displayName: (data.displayName as string) ?? null,
     jobTitle: (data.jobTitle as string) ?? null,
     email: (data.email as string) ?? null,
     photoURL: (data.photoURL as string) ?? null,
+    role,
+    isSpecialist,
   };
 }
 

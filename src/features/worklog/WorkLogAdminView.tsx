@@ -158,6 +158,16 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
   const { users, loading: usersLoading } = useUserList();
   const { showError, showSuccess } = useErrorToast();
 
+  /** displayName 정렬만 바뀌어도 users 배열 참조가 자주 갱신되므로, 구독 갱신은 uid 집합(정렬) 기준으로만 */
+  const userIdsSortedKey = useMemo(
+    () =>
+      [...users]
+        .map((u) => u.uid)
+        .sort()
+        .join(','),
+    [users]
+  );
+
   useEffect(() => {
     if (users.length === 0) {
       setLeaveByUser(new Map());
@@ -180,7 +190,8 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
       unsubs.push(unsub);
     });
     return () => unsubs.forEach((u) => u());
-  }, [users.map((u) => u.uid).join(',')]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- uid 집합은 userIdsSortedKey 와 동일 렌더의 users 로 일치
+  }, [userIdsSortedKey]);
 
   const leaveDaysByUser = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -257,40 +268,59 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
   const todayKey = toDateKeySeoul(Date.now());
 
   const todayRows = useMemo((): { userId: string; displayName: string | null; status: string; clockInAt: number | null; note: string }[] => {
-    return users.map((u) => {
-      const todayLog = allLogs.find(
-        (log) => log.userId === u.uid && toDateKeySeoul(log.clockInAt) === todayKey
-      );
-      const leaveKeys = leaveDaysByUser.get(u.uid);
-      const isLeaveToday = leaveKeys?.has(todayKey) ?? false;
-      if (todayLog) {
-        const status = getAttendanceStatus(todayLog, holidayDateKeys);
-        const note = status === '지각' ? formatTardinessNote(getTardinessMinutesSeoul(todayLog.clockInAt)) : '';
+    const todayNoonMs = new Date(todayKey + 'T12:00:00+09:00').getTime();
+    const day = getDayOfWeekSeoul(todayNoonMs);
+    const isWeekendToday = day === 0 || day === 6;
+    const isHolidayToday = holidayDateKeys.has(todayKey);
+    /** ensureTodayAbsentWorkLogs 와 동일: 평일·비공휴일에만 general 에 대해 자정 결근 문서 생성 */
+    const isAutoAbsentEligibleDay = !isWeekendToday && !isHolidayToday;
+
+    /** 일반 admin과 같이 목록에 안 보이도록: 오늘 출근 현황은 role=general 직원만 (자동 결근·출근 대상과 동일) */
+    return users
+      .filter((u) => u.role === 'general')
+      .map((u) => {
+        const todayLog = allLogs.find(
+          (log) => log.userId === u.uid && toDateKeySeoul(log.clockInAt) === todayKey
+        );
+        const leaveKeys = leaveDaysByUser.get(u.uid);
+        const isLeaveToday = leaveKeys?.has(todayKey) ?? false;
+        if (todayLog) {
+          const status = getAttendanceStatus(todayLog, holidayDateKeys);
+          const note = status === '지각' ? formatTardinessNote(getTardinessMinutesSeoul(todayLog.clockInAt)) : '';
+          return {
+            userId: u.uid,
+            displayName: u.displayName ?? null,
+            status,
+            clockInAt: todayLog.clockInAt,
+            note,
+          };
+        }
+        if (isLeaveToday) {
+          return {
+            userId: u.uid,
+            displayName: u.displayName ?? null,
+            status: '연차',
+            clockInAt: null,
+            note: '',
+          };
+        }
+        if (!isAutoAbsentEligibleDay) {
+          return {
+            userId: u.uid,
+            displayName: u.displayName ?? null,
+            status: '휴무',
+            clockInAt: null,
+            note: '',
+          };
+        }
         return {
           userId: u.uid,
           displayName: u.displayName ?? null,
-          status,
-          clockInAt: todayLog.clockInAt,
-          note,
-        };
-      }
-      if (isLeaveToday) {
-        return {
-          userId: u.uid,
-          displayName: u.displayName ?? null,
-          status: '연차',
+          status: '결근',
           clockInAt: null,
           note: '',
         };
-      }
-      return {
-        userId: u.uid,
-        displayName: u.displayName ?? null,
-        status: '결근',
-        clockInAt: null,
-        note: '',
-      };
-    });
+      });
   }, [users, allLogs, todayKey, leaveDaysByUser, holidayDateKeys]);
 
   const dbRows = useMemo((): DbRow[] => {
@@ -441,12 +471,29 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
     }));
   }
 
+  const hasDirtyDbEdits = useMemo(
+    () =>
+      Object.values(editedRows).some((patch) => patch != null && Object.keys(patch).length > 0),
+    [editedRows]
+  );
+
   const handleSaveDbEdits = async () => {
-    const worklogRows = dbRows.filter((r): r is DbRow & { type: 'worklog'; logId: string } => r.type === 'worklog' && !!r.logId);
-    if (worklogRows.length === 0) return;
+    const dirtyLogIds = Object.keys(editedRows).filter(
+      (logId) => editedRows[logId] != null && Object.keys(editedRows[logId]!).length > 0
+    );
+    if (dirtyLogIds.length === 0) {
+      showSuccess('DB 수정', '변경된 내용이 없습니다.');
+      return;
+    }
     setDbSaveLoading(true);
     try {
-      for (const r of worklogRows) {
+      const rowByLogId = new Map<string, DbRow>();
+      for (const r of dbRows) {
+        if (r.type === 'worklog' && r.logId) rowByLogId.set(r.logId, r);
+      }
+      for (const logId of dirtyLogIds) {
+        const r = rowByLogId.get(logId);
+        if (!r || r.type !== 'worklog' || !r.logId) continue;
         const status = getEffectiveValue(r, 'attendanceStatus');
         const clockInAt = getEffectiveValue(r, 'clockInAt');
         const clockOutAt = getEffectiveValue(r, 'clockOutAt');
@@ -462,7 +509,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
           note: note ?? null,
           leaveType: attendanceStatusToLeaveType(status),
         };
-        await updateWorkLogByAdmin(r.logId, payload);
+        await updateWorkLogByAdmin(logId, payload);
       }
       showSuccess('DB 수정 완료', '수정한 출퇴근 기록이 저장되었습니다.');
     } catch (err) {
@@ -589,7 +636,9 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                                     ? 'bg-gray-100 text-gray-700'
                                     : row.status === '연차'
                                       ? 'bg-brand-sub/20 text-brand-dark'
-                                      : 'bg-red-100 text-red-800'
+                                      : row.status === '휴무'
+                                        ? 'bg-gray-100 text-gray-600'
+                                        : 'bg-red-100 text-red-800'
                             }`}
                           >
                             {row.status}
@@ -723,7 +772,7 @@ export function WorkLogAdminView({ currentUser }: WorkLogAdminViewProps) {
                     <button
                       type="button"
                       onClick={handleSaveDbEdits}
-                      disabled={dbSaveLoading || dbRows.filter((r) => r.type === 'worklog' && r.logId).length === 0}
+                      disabled={dbSaveLoading || !hasDirtyDbEdits}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {dbSaveLoading ? <Loader2 size={14} className="animate-spin" /> : null}

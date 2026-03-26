@@ -1,5 +1,5 @@
 /**
- * 직원 출퇴근 액션 (사무실 IP에서만 허용). Callable.
+ * 직원 출퇴근 액션. Callable.
  */
 export declare const workLogAction: import("firebase-functions/v2/https").CallableFunction<any, Promise<{
     id: string;
