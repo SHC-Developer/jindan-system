@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import type { SharedCalendarEvent, SharedCalendarCategory } from '../../types/shared-calendar';
+import type {
+  SharedCalendarEvent,
+  SharedCalendarCategory,
+  SharedCalendarRepeatFrequency,
+  SharedCalendarMonthlyPattern,
+  SharedCalendarYearlyPattern,
+} from '../../types/shared-calendar';
 
 const CATEGORY_OPTIONS: { value: SharedCalendarCategory; label: string }[] = [
   { value: 'meeting', label: '회의' },
@@ -18,6 +24,9 @@ export interface EventFormValues {
   location: string;
   description: string;
   category: SharedCalendarCategory;
+  repeatFrequency: SharedCalendarRepeatFrequency;
+  monthlyPattern: SharedCalendarMonthlyPattern;
+  yearlyPattern: SharedCalendarYearlyPattern;
 }
 
 const defaultValues: EventFormValues = {
@@ -30,6 +39,9 @@ const defaultValues: EventFormValues = {
   location: '',
   description: '',
   category: 'meeting',
+  repeatFrequency: 'none',
+  monthlyPattern: 'day_of_month',
+  yearlyPattern: 'same_date',
 };
 
 export interface EventFormModalProps {
@@ -66,6 +78,9 @@ export function EventFormModal({
         location: editEvent.location ?? '',
         description: editEvent.description ?? '',
         category: (['meeting', 'field', 'education'].includes(editEvent.category ?? '') ? editEvent.category! : 'meeting'),
+        repeatFrequency: editEvent.repeatFrequency ?? 'none',
+        monthlyPattern: editEvent.monthlyPattern ?? 'day_of_month',
+        yearlyPattern: editEvent.yearlyPattern ?? 'same_date',
       });
     } else {
       const dateKey = initialDateKey ?? new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' });
@@ -192,6 +207,102 @@ export function EventFormModal({
                 ))}
               </select>
             </div>
+
+            {!editEvent && (
+              <div className="rounded-lg border border-gray-200 bg-brand-light/40 p-3 space-y-3">
+                <div>
+                  <label htmlFor="event-repeat" className="block text-sm font-medium text-gray-700 mb-1">
+                    반복
+                  </label>
+                  <select
+                    id="event-repeat"
+                    value={values.repeatFrequency}
+                    onChange={(e) =>
+                      setValues((v) => ({
+                        ...v,
+                        repeatFrequency: e.target.value as SharedCalendarRepeatFrequency,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-main focus:border-transparent"
+                  >
+                    <option value="none">반복 안 함</option>
+                    <option value="daily">1일마다</option>
+                    <option value="weekly">1주마다</option>
+                    <option value="monthly">1개월마다</option>
+                    <option value="yearly">1년마다</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    반복 일정은 약 2년치까지 등록됩니다. 각 날짜는 개별 문서로 저장되며, 하나만 삭제할 수 있습니다.
+                  </p>
+                </div>
+
+                {values.repeatFrequency === 'monthly' && (
+                  <fieldset className="space-y-2">
+                    <legend className="text-sm font-medium text-gray-700 mb-1">1개월마다 기준</legend>
+                    <label className="flex items-start gap-2 text-sm text-gray-800 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="monthlyPattern"
+                        className="mt-1 rounded-full border-gray-300 text-brand-main focus:ring-brand-main"
+                        checked={values.monthlyPattern === 'day_of_month'}
+                        onChange={() => setValues((v) => ({ ...v, monthlyPattern: 'day_of_month' }))}
+                      />
+                      <span>매월 같은 날짜 (시작일의 일자마다 반복)</span>
+                    </label>
+                    <label className="flex items-start gap-2 text-sm text-gray-800 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="monthlyPattern"
+                        className="mt-1 rounded-full border-gray-300 text-brand-main focus:ring-brand-main"
+                        checked={values.monthlyPattern === 'first_friday'}
+                        onChange={() => setValues((v) => ({ ...v, monthlyPattern: 'first_friday' }))}
+                      />
+                      <span>매월 첫 번째 금요일마다 반복</span>
+                    </label>
+                  </fieldset>
+                )}
+
+                {values.repeatFrequency === 'yearly' && (
+                  <fieldset className="space-y-2">
+                    <legend className="text-sm font-medium text-gray-700 mb-1">1년마다 기준</legend>
+                    <label className="flex items-start gap-2 text-sm text-gray-800 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="yearlyPattern"
+                        className="mt-1 rounded-full border-gray-300 text-brand-main focus:ring-brand-main"
+                        checked={values.yearlyPattern === 'same_date'}
+                        onChange={() => setValues((v) => ({ ...v, yearlyPattern: 'same_date' }))}
+                      />
+                      <span>매년 같은 월·일 (시작일과 동일한 월·일)</span>
+                    </label>
+                    <label className="flex items-start gap-2 text-sm text-gray-800 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="yearlyPattern"
+                        className="mt-1 rounded-full border-gray-300 text-brand-main focus:ring-brand-main"
+                        checked={values.yearlyPattern === 'first_friday_of_month'}
+                        onChange={() => setValues((v) => ({ ...v, yearlyPattern: 'first_friday_of_month' }))}
+                      />
+                      <span>
+                        매년 시작일 기준 월의 첫 번째 금요일마다 반복
+                        {values.dateKey && (
+                          <span className="block text-xs text-gray-500 mt-0.5">
+                            (시작일 월: {values.dateKey.slice(5, 7)}월)
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  </fieldset>
+                )}
+              </div>
+            )}
+
+            {editEvent && editEvent.repeatFrequency && editEvent.repeatFrequency !== 'none' && (
+              <p className="text-xs text-gray-500 rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                이 일정은 반복 시리즈의 한 건입니다. 반복 규칙을 바꾸려면 해당 건을 삭제한 뒤 새로 등록해 주세요.
+              </p>
+            )}
+
             <div className="flex items-center gap-2">
               <input
                 id="event-allday"

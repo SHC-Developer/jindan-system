@@ -3,17 +3,43 @@ import {
   onSnapshot,
   query,
   orderBy,
+  where,
+  getDocs,
+  writeBatch,
   addDoc,
   updateDoc,
   deleteDoc,
   serverTimestamp,
   type Timestamp,
+  type DocumentData,
 } from 'firebase/firestore';
+import { getDbInstance } from '../lib/firebase';
 import {
   getSharedCalendarEventsRef,
   getSharedCalendarEventRef,
 } from '../lib/firestore-paths';
-import type { SharedCalendarEvent, SharedCalendarCategory } from '../types/shared-calendar';
+import type {
+  SharedCalendarEvent,
+  SharedCalendarCategory,
+  SharedCalendarRepeatFrequency,
+  SharedCalendarMonthlyPattern,
+  SharedCalendarYearlyPattern,
+} from '../types/shared-calendar';
+
+function parseRepeatFrequency(v: unknown): SharedCalendarRepeatFrequency | undefined {
+  if (v === 'none' || v === 'daily' || v === 'weekly' || v === 'monthly' || v === 'yearly') return v;
+  return undefined;
+}
+
+function parseMonthlyPattern(v: unknown): SharedCalendarMonthlyPattern | undefined {
+  if (v === 'day_of_month' || v === 'first_friday') return v;
+  return undefined;
+}
+
+function parseYearlyPattern(v: unknown): SharedCalendarYearlyPattern | undefined {
+  if (v === 'same_date' || v === 'first_friday_of_month') return v;
+  return undefined;
+}
 
 function dataToEvent(id: string, data: Record<string, unknown>): SharedCalendarEvent {
   const createdAt = data.createdAt;
@@ -55,6 +81,10 @@ function dataToEvent(id: string, data: Record<string, unknown>): SharedCalendarE
     updatedAt: updatedMs,
     sourceLeaveUserId: (data.sourceLeaveUserId as string | undefined) ?? undefined,
     sourceLeaveDateKey: (data.sourceLeaveDateKey as string | undefined) ?? undefined,
+    recurrenceSeriesId: (data.recurrenceSeriesId as string | undefined) ?? undefined,
+    repeatFrequency: parseRepeatFrequency(data.repeatFrequency),
+    monthlyPattern: parseMonthlyPattern(data.monthlyPattern),
+    yearlyPattern: parseYearlyPattern(data.yearlyPattern),
   };
 }
 
@@ -72,6 +102,10 @@ export interface CreateSharedCalendarEventInput {
   createdByName?: string;
   sourceLeaveUserId?: string;
   sourceLeaveDateKey?: string;
+  recurrenceSeriesId?: string;
+  repeatFrequency?: SharedCalendarRepeatFrequency;
+  monthlyPattern?: SharedCalendarMonthlyPattern;
+  yearlyPattern?: SharedCalendarYearlyPattern;
 }
 
 /** 공유일정 캘린더 일정 목록 실시간 구독 (dateKey 순, 그다음 createdAt 순) */
@@ -85,6 +119,8 @@ export function useSharedCalendarEvents(): {
     input: Partial<Omit<SharedCalendarEvent, 'id' | 'createdBy' | 'createdAt'>>
   ) => Promise<void>;
   deleteEvent: (eventId: string) => Promise<void>;
+  /** 동일 recurrenceSeriesId + 본인 작성 일정 일괄 삭제 (반복 풀기) */
+  deleteEventsBySeriesId: (seriesId: string, createdByUid: string) => Promise<void>;
 } {
   const [events, setEvents] = useState<SharedCalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,7 +134,7 @@ export function useSharedCalendarEvents(): {
       q,
       (snapshot) => {
         setEvents(
-          snapshot.docs.map((d) => dataToEvent(d.id, d.data() as Record<string, unknown>))
+          snapshot.docs.map((d) => dataToEvent(d.id, d.data() as unknown as Record<string, unknown>))
         );
         setLoading(false);
       },
@@ -130,7 +166,13 @@ export function useSharedCalendarEvents(): {
       if (input.createdByName != null) data.createdByName = input.createdByName;
       if (input.sourceLeaveUserId != null) data.sourceLeaveUserId = input.sourceLeaveUserId;
       if (input.sourceLeaveDateKey != null) data.sourceLeaveDateKey = input.sourceLeaveDateKey;
-      const docRef = await addDoc(ref, data);
+      if (input.recurrenceSeriesId != null) data.recurrenceSeriesId = input.recurrenceSeriesId;
+      if (input.repeatFrequency != null && input.repeatFrequency !== 'none') {
+        data.repeatFrequency = input.repeatFrequency;
+      }
+      if (input.monthlyPattern != null) data.monthlyPattern = input.monthlyPattern;
+      if (input.yearlyPattern != null) data.yearlyPattern = input.yearlyPattern;
+      const docRef = await addDoc(ref, data as DocumentData);
       return docRef.id;
     },
     []
@@ -143,11 +185,26 @@ export function useSharedCalendarEvents(): {
     ): Promise<void> => {
       const ref = getSharedCalendarEventRef(eventId);
       const payload: Record<string, unknown> = { updatedAt: serverTimestamp() };
-      (['title', 'dateKey', 'startDateKey', 'endDateKey', 'startTime', 'endTime', 'description', 'location', 'category', 'createdByName'] as const).forEach(
-        (key) => {
-          if (input[key] !== undefined) payload[key] = input[key];
-        }
-      );
+      (
+        [
+          'title',
+          'dateKey',
+          'startDateKey',
+          'endDateKey',
+          'startTime',
+          'endTime',
+          'description',
+          'location',
+          'category',
+          'createdByName',
+          'recurrenceSeriesId',
+          'repeatFrequency',
+          'monthlyPattern',
+          'yearlyPattern',
+        ] as const
+      ).forEach((key) => {
+        if (input[key] !== undefined) payload[key] = input[key];
+      });
       await updateDoc(ref, payload);
     },
     []
@@ -158,5 +215,24 @@ export function useSharedCalendarEvents(): {
     await deleteDoc(ref);
   }, []);
 
-  return { events, loading, error, createEvent, updateEvent, deleteEvent };
+  const deleteEventsBySeriesId = useCallback(async (seriesId: string, createdByUid: string): Promise<void> => {
+    const ref = getSharedCalendarEventsRef();
+    const q = query(ref, where('recurrenceSeriesId', '==', seriesId), where('createdBy', '==', createdByUid));
+    const snap = await getDocs(q);
+    const db = getDbInstance();
+    let batch = writeBatch(db);
+    let ops = 0;
+    for (const d of snap.docs) {
+      batch.delete(d.ref);
+      ops++;
+      if (ops >= 500) {
+        await batch.commit();
+        batch = writeBatch(db);
+        ops = 0;
+      }
+    }
+    if (ops > 0) await batch.commit();
+  }, []);
+
+  return { events, loading, error, createEvent, updateEvent, deleteEvent, deleteEventsBySeriesId };
 }

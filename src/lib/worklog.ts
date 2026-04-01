@@ -1,6 +1,6 @@
 import { addDoc, updateDoc, getDoc, deleteDoc, getDocs, query, where, orderBy, limit, runTransaction } from 'firebase/firestore';
 import { getWorkLogsRef, getWorkLogRef } from './firestore-paths';
-import { toDateKeySeoul } from './datetime-seoul';
+import { toDateKeySeoul, formatClockInAtDisplaySeoul } from './datetime-seoul';
 import type { WorkLogStatus } from '../types/worklog';
 
 /** 출근하기: 승인 없이 status 'approved'로 즉시 기록 생성. 당일 중복 출근 방지. */
@@ -29,6 +29,7 @@ export async function createWorkLog(
     userId,
     userDisplayName: userDisplayName ?? null,
     clockInAt: now,
+    clockInAtDisplaySeoul: formatClockInAtDisplaySeoul(now),
     clockOutAt: null,
     status: 'approved',
     approvedBy: null,
@@ -61,6 +62,7 @@ export async function updateWorkLogToClockIn(
   }
   await updateDoc(ref, {
     clockInAt: clockInAtMs,
+    clockInAtDisplaySeoul: formatClockInAtDisplaySeoul(clockInAtMs),
     status: 'approved',
     approvedBy: null,
     approvedAt: null,
@@ -125,6 +127,7 @@ export async function createAbsentWorkLog(
     userId,
     userDisplayName: userDisplayName ?? null,
     clockInAt,
+    clockInAtDisplaySeoul: formatClockInAtDisplaySeoul(clockInAt),
     clockOutAt: null,
     status: 'absent',
     approvedBy: null,
@@ -150,6 +153,7 @@ export async function createOvertimeOnlyWorkLog(
     userId,
     userDisplayName: userDisplayName ?? null,
     clockInAt: now,
+    clockInAtDisplaySeoul: formatClockInAtDisplaySeoul(now),
     clockOutAt: now,
     status: 'approved',
     approvedBy: null,
@@ -180,6 +184,7 @@ export async function updateAbsentToOvertime(
   const now = Date.now();
   await updateDoc(ref, {
     clockInAt: now,
+    clockInAtDisplaySeoul: formatClockInAtDisplaySeoul(now),
     clockOutAt: now,
     status: 'approved',
     approvedBy: null,
@@ -208,7 +213,10 @@ export async function updateWorkLogByAdmin(
   const ref = getWorkLogRef(logId);
   const updates: Record<string, unknown> = {};
   if (payload.status !== undefined) updates.status = payload.status;
-  if (payload.clockInAt !== undefined) updates.clockInAt = payload.clockInAt;
+  if (payload.clockInAt !== undefined) {
+    updates.clockInAt = payload.clockInAt;
+    updates.clockInAtDisplaySeoul = formatClockInAtDisplaySeoul(payload.clockInAt);
+  }
   if (payload.clockOutAt !== undefined) updates.clockOutAt = payload.clockOutAt;
   if (payload.overtimeStartAt !== undefined) updates.overtimeStartAt = payload.overtimeStartAt;
   if (payload.overtimeEndAt !== undefined) updates.overtimeEndAt = payload.overtimeEndAt;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTodayWorkLog, useMyWorkLogs } from '../../hooks/useWorkLog';
 import { useLeaveDays } from '../../hooks/useLeaveDays';
 import {
@@ -49,6 +49,8 @@ interface WorkLogDashboardViewProps {
 export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps) {
   const [now, setNow] = useState(() => Date.now());
   const [clockInLoading, setClockInLoading] = useState(false);
+  /** 리렌더 전 연속 탭·더블 탭으로 출근 Callable이 중복 호출되는 것 방지 */
+  const clockInInFlightRef = useRef(false);
   const [clockOutLoading, setClockOutLoading] = useState<string | null>(null);
   const [tardinessModalOpen, setTardinessModalOpen] = useState(false);
   const [tardinessReason, setTardinessReason] = useState('');
@@ -123,12 +125,14 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
   const isAfterSixPm = now >= sixPm;
 
   const handleClockInClick = useCallback(() => {
+    if (clockInInFlightRef.current) return;
     if ((todayLog && todayLog.status !== 'absent') || clockInLoading) return;
     if (isTardyNow) {
       setTardinessModalOpen(true);
       setTardinessReason('');
       return;
     }
+    clockInInFlightRef.current = true;
     setClockInLoading(true);
     const onSuccess = () => {
       const name = currentUser.displayName ?? '직원';
@@ -141,18 +145,25 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       updateWorkLogToClockIn(todayLog.id, Date.now(), null, currentUser.uid)
         .then(onSuccess)
         .catch((e) => showError('출근 처리 실패', e))
-        .finally(() => setClockInLoading(false));
+        .finally(() => {
+          clockInInFlightRef.current = false;
+          setClockInLoading(false);
+        });
     } else {
       createWorkLog(currentUser.uid, currentUser.displayName, null)
         .then(onSuccess)
         .catch((e) => showError('출근 처리 실패', e))
-        .finally(() => setClockInLoading(false));
+        .finally(() => {
+          clockInInFlightRef.current = false;
+          setClockInLoading(false);
+        });
     }
   }, [todayLog, clockInLoading, isTardyNow, currentUser.uid, currentUser.displayName, addToast, showError]);
 
   const handleTardinessSubmit = useCallback(() => {
     const reason = tardinessReason.trim();
-    if (!reason || clockInLoading) return;
+    if (!reason || clockInLoading || clockInInFlightRef.current) return;
+    clockInInFlightRef.current = true;
     setClockInLoading(true);
     const onSuccess = () => {
       setTardinessModalOpen(false);
@@ -167,12 +178,18 @@ export function WorkLogDashboardView({ currentUser }: WorkLogDashboardViewProps)
       updateWorkLogToClockIn(todayLog.id, Date.now(), reason, currentUser.uid)
         .then(onSuccess)
         .catch((e) => showError('출근 처리 실패', e))
-        .finally(() => setClockInLoading(false));
+        .finally(() => {
+          clockInInFlightRef.current = false;
+          setClockInLoading(false);
+        });
     } else {
       createWorkLog(currentUser.uid, currentUser.displayName, reason)
         .then(onSuccess)
         .catch((e) => showError('출근 처리 실패', e))
-        .finally(() => setClockInLoading(false));
+        .finally(() => {
+          clockInInFlightRef.current = false;
+          setClockInLoading(false);
+        });
     }
   }, [tardinessReason, clockInLoading, todayLog, currentUser.uid, currentUser.displayName, addToast, showError]);
 

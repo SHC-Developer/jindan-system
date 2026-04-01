@@ -10,6 +10,8 @@ import { EventDetailModal } from './EventDetailModal';
 import type { AppUser } from '../../types/user';
 import type { SharedCalendarEvent } from '../../types/shared-calendar';
 import { CATEGORY_COLORS } from '../../types/shared-calendar';
+import { expandRecurrenceOccurrences } from '../../lib/shared-calendar-recurrence';
+import { randomUuidV4 } from '../../lib/random-uuid';
 
 const WEEKDAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
 
@@ -18,7 +20,8 @@ interface SharedCalendarViewProps {
 }
 
 export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
-  const { events, loading, error, createEvent, updateEvent, deleteEvent } = useSharedCalendarEvents();
+  const { events, loading, error, createEvent, updateEvent, deleteEvent, deleteEventsBySeriesId } =
+    useSharedCalendarEvents();
   const approvedLeaveDays = useApprovedLeaveDays();
   const [calendarMonth, setCalendarMonth] = useState(() =>
     new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Seoul' }).slice(0, 7)
@@ -162,11 +165,13 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
     async (values: EventFormValues) => {
       const startKey = values.dateKey;
       const endKey = values.endDateKey || values.dateKey;
-      const payload = {
-        title: values.title.trim(),
-        dateKey: startKey,
-        startDateKey: startKey,
-        endDateKey: endKey,
+      const title = values.title.trim();
+
+      const buildOccPayload = (occStart: string, occEnd: string) => ({
+        title,
+        dateKey: occStart,
+        startDateKey: occStart,
+        endDateKey: occEnd,
         startTime: values.allDay ? undefined : values.startTime,
         endTime: values.allDay ? undefined : values.endTime,
         description: values.description.trim() || undefined,
@@ -174,47 +179,90 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
         category: values.category,
         createdBy: currentUser.uid,
         createdByName: currentUser.displayName ?? undefined,
-      };
+      });
+
       if (editingEvent) {
         await updateEvent(editingEvent.id, {
-          title: payload.title,
-          dateKey: payload.dateKey,
-          startDateKey: payload.startDateKey,
-          endDateKey: payload.endDateKey,
-          startTime: payload.startTime,
-          endTime: payload.endTime,
-          description: payload.description,
-          location: payload.location,
-          category: payload.category,
+          title,
+          dateKey: startKey,
+          startDateKey: startKey,
+          endDateKey: endKey,
+          startTime: values.allDay ? undefined : values.startTime,
+          endTime: values.allDay ? undefined : values.endTime,
+          description: values.description.trim() || undefined,
+          location: values.location.trim() || undefined,
+          category: values.category,
         });
-      } else {
-        await createEvent(payload);
-        await notifyAllUsers(
-          {
-            type: 'shared_calendar_event',
-            title: '공유일정 등록',
-            sharedCalendarEventTitle: payload.title,
-            sharedCalendarEventUserDisplayName: currentUser.displayName ?? undefined,
-          },
-          currentUser.uid
-        );
+        return;
       }
+
+      const occurrences = expandRecurrenceOccurrences({
+        startDateKey: startKey,
+        endDateKey: endKey,
+        repeatFrequency: values.repeatFrequency,
+        monthlyPattern: values.monthlyPattern,
+        yearlyPattern: values.yearlyPattern,
+      });
+
+      const seriesId =
+        values.repeatFrequency !== 'none' && occurrences.length > 0 ? randomUuidV4() : undefined;
+
+      for (const occ of occurrences) {
+        const occPayload = buildOccPayload(occ.startDateKey, occ.endDateKey);
+        await createEvent({
+          ...occPayload,
+          recurrenceSeriesId: seriesId,
+          repeatFrequency: values.repeatFrequency !== 'none' ? values.repeatFrequency : undefined,
+          monthlyPattern: values.repeatFrequency === 'monthly' ? values.monthlyPattern : undefined,
+          yearlyPattern: values.repeatFrequency === 'yearly' ? values.yearlyPattern : undefined,
+        });
+      }
+
+      const notifTitle =
+        occurrences.length > 1 ? `공유일정 등록 (${occurrences.length}건)` : '공유일정 등록';
+
+      await notifyAllUsers(
+        {
+          type: 'shared_calendar_event',
+          title: notifTitle,
+          sharedCalendarEventTitle: title,
+          sharedCalendarEventUserDisplayName: currentUser.displayName ?? undefined,
+        },
+        currentUser.uid
+      );
     },
     [currentUser.uid, currentUser.displayName, editingEvent, createEvent, updateEvent]
   );
 
   const handleDelete = useCallback(
-    async (ev: SharedCalendarEvent) => {
-      if (ev.id.startsWith('leave-')) return;
-      if (ev.createdBy !== currentUser.uid) return;
-      if (!window.confirm(`"${ev.title}" 일정을 삭제하시겠습니까?`)) return;
+    async (ev: SharedCalendarEvent, scope: 'this' | 'series' = 'this'): Promise<boolean> => {
+      if (ev.id.startsWith('leave-')) return false;
+      if (ev.createdBy !== currentUser.uid) return false;
+      if (scope === 'series' && ev.recurrenceSeriesId) {
+        const n = events.filter(
+          (e) => e.recurrenceSeriesId === ev.recurrenceSeriesId && e.createdBy === currentUser.uid
+        ).length;
+        if (!window.confirm(`이 반복 일정 ${n}건을 모두 삭제하시겠습니까?\n이후에는 같은 시리즈로 묶인 일정이 모두 사라집니다.`)) {
+          return false;
+        }
+        try {
+          await deleteEventsBySeriesId(ev.recurrenceSeriesId, currentUser.uid);
+          return true;
+        } catch (err) {
+          window.alert(err instanceof Error ? err.message : '삭제에 실패했습니다.');
+          return false;
+        }
+      }
+      if (!window.confirm(`"${ev.title}" 일정을 삭제하시겠습니까?`)) return false;
       try {
         await deleteEvent(ev.id);
+        return true;
       } catch (err) {
         window.alert(err instanceof Error ? err.message : '삭제에 실패했습니다.');
+        return false;
       }
     },
-    [currentUser.uid, deleteEvent]
+    [currentUser.uid, deleteEvent, deleteEventsBySeriesId, events]
   );
 
   if (loading) {
@@ -512,6 +560,13 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
         open={!!detailEvent}
         event={detailEvent}
         isOwnEvent={detailEvent ? detailEvent.createdBy === currentUser.uid && !detailEvent.id.startsWith('leave-') : false}
+        seriesCount={
+          detailEvent?.recurrenceSeriesId
+            ? events.filter(
+                (e) => e.recurrenceSeriesId === detailEvent.recurrenceSeriesId && e.createdBy === currentUser.uid
+              ).length
+            : undefined
+        }
         onClose={handleCloseDetailModal}
         onEdit={() => {
           if (detailEvent) {
@@ -519,11 +574,10 @@ export function SharedCalendarView({ currentUser }: SharedCalendarViewProps) {
             handleOpenEditModal(detailEvent);
           }
         }}
-        onDelete={() => {
-          if (detailEvent) {
-            handleCloseDetailModal();
-            handleDelete(detailEvent);
-          }
+        onDelete={async (scope) => {
+          if (!detailEvent) return;
+          const ok = await handleDelete(detailEvent, scope);
+          if (ok) handleCloseDetailModal();
         }}
       />
     </div>

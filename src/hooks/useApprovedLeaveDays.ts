@@ -6,6 +6,15 @@ import type { SharedCalendarEvent } from '../types/shared-calendar';
 /** 연차 DB에서 읽어온 승인된 연차를 SharedCalendarEvent 형식으로 변환 */
 export function useApprovedLeaveDays(): SharedCalendarEvent[] {
   const { users } = useUserList();
+  const userIdsSortedKey = useMemo(
+    () =>
+      [...users]
+        .map((u) => u.uid)
+        .sort()
+        .join(','),
+    [users]
+  );
+
   const [leaveByUser, setLeaveByUser] = useState<Map<string, { dateKey: string; type: string }[]>>(new Map());
 
   useEffect(() => {
@@ -31,9 +40,10 @@ export function useApprovedLeaveDays(): SharedCalendarEvent[] {
       unsubs.push(unsub);
     });
     return () => unsubs.forEach((u) => u());
-  }, [users.map((u) => u.uid).join(',')]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- uid 집합은 userIdsSortedKey 와 동일 렌더의 users 와 일치
+  }, [userIdsSortedKey]);
 
-  return useMemo(() => {
+  const leaveEvents = useMemo(() => {
     const result: SharedCalendarEvent[] = [];
     leaveByUser.forEach((items, userId) => {
       const displayName = users.find((u) => u.uid === userId)?.displayName ?? userId.slice(0, 8);
@@ -54,4 +64,6 @@ export function useApprovedLeaveDays(): SharedCalendarEvent[] {
     });
     return result;
   }, [leaveByUser, users]);
+
+  return leaveEvents;
 }

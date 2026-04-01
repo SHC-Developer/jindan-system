@@ -12,6 +12,12 @@ function getTodayKeySeoul(now: Date): string {
   return now.toLocaleDateString('en-CA', { timeZone: TIMEZONE });
 }
 
+/** clockInAt(ms)와 동일 시각 · 서울 · YYYY-MM-DD HH:mm (Firestore 콘솔 가독성) */
+function formatClockInAtDisplaySeoul(clockInAtMs: number): string {
+  const s = new Date(clockInAtMs).toLocaleString('sv-SE', { timeZone: TIMEZONE });
+  return s.slice(0, 16);
+}
+
 /** clockInAt(ms) 기준 서울 해당일 18:00 의 ms. 자동 퇴근 시각용. */
 function getTodaySixSeoul(clockInAtMs: number): number {
   const dateKey = new Date(clockInAtMs).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
@@ -65,32 +71,55 @@ export const workLogAction = onCall(
         const todayKey = getTodayKeySeoul(new Date(now));
         const todayStart = new Date(todayKey + 'T00:00:00+09:00').getTime();
         const todayEnd = todayStart + 24 * 60 * 60 * 1000;
-        const existing = await db.collection('workLogs')
+        const dayQuery = db
+          .collection('workLogs')
           .where('userId', '==', userId)
           .where('clockInAt', '>=', todayStart)
-          .where('clockInAt', '<', todayEnd)
-          .limit(1)
-          .get();
-        if (!existing.empty) {
-          const status = existing.docs[0].data().status;
-          if (status !== 'absent') {
+          .where('clockInAt', '<', todayEnd);
+        const result = await db.runTransaction(async (tx) => {
+          const snap = await tx.get(dayQuery);
+          const rows = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
+          const hasRealClockIn = rows.some((r) => r.data.status !== 'absent');
+          if (hasRealClockIn) {
             throw new HttpsError('failed-precondition', '오늘은 이미 출근 기록이 있습니다.');
           }
-        }
-        const docRef = await db.collection('workLogs').add({
-          userId,
-          userDisplayName,
-          clockInAt: now,
-          clockOutAt: null,
-          status: 'approved',
-          approvedBy: null,
-          approvedAt: null,
-          tardinessReason,
-          overtimeStartAt: null,
-          overtimeEndAt: null,
-          overtimeReason: null,
+          const absentRow = rows.find((r) => r.data.status === 'absent');
+          if (absentRow) {
+            const ref = db.collection('workLogs').doc(absentRow.id);
+            tx.update(ref, {
+              userDisplayName,
+              clockInAt: now,
+              clockInAtDisplaySeoul: formatClockInAtDisplaySeoul(now),
+              clockOutAt: null,
+              status: 'approved',
+              approvedBy: null,
+              approvedAt: null,
+              tardinessReason,
+              overtimeStartAt: null,
+              overtimeEndAt: null,
+              overtimeReason: null,
+              leaveType: null,
+            });
+            return { id: absentRow.id };
+          }
+          const newRef = db.collection('workLogs').doc();
+          tx.set(newRef, {
+            userId,
+            userDisplayName,
+            clockInAt: now,
+            clockInAtDisplaySeoul: formatClockInAtDisplaySeoul(now),
+            clockOutAt: null,
+            status: 'approved',
+            approvedBy: null,
+            approvedAt: null,
+            tardinessReason,
+            overtimeStartAt: null,
+            overtimeEndAt: null,
+            overtimeReason: null,
+          });
+          return { id: newRef.id };
         });
-        return { id: docRef.id };
+        return result;
       }
 
       case 'updateWorkLogToClockIn': {
@@ -99,19 +128,26 @@ export const workLogAction = onCall(
         const tardinessReason = (params.tardinessReason as string | null) ?? null;
         const expectedUserId = params.expectedUserId as string | undefined;
         const ref = db.collection('workLogs').doc(logId);
-        const docSnap = await ref.get();
-        if (!docSnap.exists) throw new HttpsError('not-found', '해당 출퇴근 기록을 찾을 수 없습니다.');
-        const data = docSnap.data();
-        if (expectedUserId != null && data?.userId !== expectedUserId) {
-          throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
-        }
-        if (data?.userId !== uid) throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
-        await ref.update({
-          clockInAt: clockInAtMs,
-          status: 'approved',
-          approvedBy: null,
-          approvedAt: null,
-          tardinessReason,
+        await db.runTransaction(async (tx) => {
+          const docSnap = await tx.get(ref);
+          if (!docSnap.exists) throw new HttpsError('not-found', '해당 출퇴근 기록을 찾을 수 없습니다.');
+          const data = docSnap.data();
+          if (expectedUserId != null && data?.userId !== expectedUserId) {
+            throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
+          }
+          if (data?.userId !== uid) throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
+          if (data?.status !== 'absent') {
+            throw new HttpsError('failed-precondition', '오늘은 이미 출근 기록이 있습니다.');
+          }
+          tx.update(ref, {
+            clockInAt: clockInAtMs,
+            clockInAtDisplaySeoul: formatClockInAtDisplaySeoul(clockInAtMs),
+            status: 'approved',
+            approvedBy: null,
+            approvedAt: null,
+            tardinessReason,
+            leaveType: null,
+          });
         });
         return {};
       }
@@ -176,6 +212,7 @@ export const workLogAction = onCall(
           userId,
           userDisplayName,
           clockInAt: now,
+          clockInAtDisplaySeoul: formatClockInAtDisplaySeoul(now),
           clockOutAt: now,
           status: 'approved',
           approvedBy: null,
@@ -203,6 +240,7 @@ export const workLogAction = onCall(
         const now = Date.now();
         await ref.update({
           clockInAt: now,
+          clockInAtDisplaySeoul: formatClockInAtDisplaySeoul(now),
           clockOutAt: now,
           status: 'approved',
           approvedBy: null,
@@ -254,6 +292,7 @@ export const ensureTodayAbsentWorkLogs = onSchedule(
         userId: uid,
         userDisplayName: displayName,
         clockInAt,
+        clockInAtDisplaySeoul: formatClockInAtDisplaySeoul(clockInAt),
         clockOutAt: null,
         status: 'absent',
         approvedBy: null,

@@ -9,6 +9,15 @@ export function toDateKeySeoul(ms: number): string {
   return new Date(ms).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
 }
 
+/**
+ * workLogs.clockInAt(ms)와 동일 시각을 사람이 읽기 쉬운 문자열로 (Firestore 콘솔·엑셀용).
+ * 형식: YYYY-MM-DD HH:mm (Asia/Seoul)
+ */
+export function formatClockInAtDisplaySeoul(clockInAtMs: number): string {
+  const s = new Date(clockInAtMs).toLocaleString('sv-SE', { timeZone: TIMEZONE });
+  return s.slice(0, 16);
+}
+
 /** 현재 시각을 서울 기준 Date 객체처럼 다루기 위한 "서울 기준 오늘" 시작/끝 ms (UTC 기준) */
 export function getStartOfDaySeoul(ms: number): number {
   const s = new Date(ms).toLocaleDateString('en-CA', { timeZone: TIMEZONE });

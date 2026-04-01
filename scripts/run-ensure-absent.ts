@@ -25,6 +25,11 @@ function getDayOfWeekSeoul(dateKey: string): number {
   return d.getDay();
 }
 
+function formatClockInAtDisplaySeoul(clockInAtMs: number): string {
+  const s = new Date(clockInAtMs).toLocaleString('sv-SE', { timeZone: TIMEZONE });
+  return s.slice(0, 16);
+}
+
 async function getHolidayDateKeys(year: number): Promise<Set<string>> {
   const url = `${HOLIDAYS_CDN}/${year}.json`;
   const res = await fetch(url);
@@ -95,6 +100,7 @@ async function main() {
       userId: uid,
       userDisplayName: displayName,
       clockInAt,
+      clockInAtDisplaySeoul: formatClockInAtDisplaySeoul(clockInAt),
       clockOutAt: null,
       status: 'absent',
       approvedBy: null,

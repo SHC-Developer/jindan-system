@@ -79,6 +79,14 @@
         { "fieldPath": "dateKey", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "sharedCalendarEvents",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "recurrenceSeriesId", "order": "ASCENDING" },
+        { "fieldPath": "createdBy", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

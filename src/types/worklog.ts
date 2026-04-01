@@ -5,6 +5,8 @@ export interface WorkLogEntry {
   userId: string;
   userDisplayName: string | null;
   clockInAt: number;
+  /** 서울 기준 YYYY-MM-DD HH:mm — Firestore 콘솔 가독용(선택, clockInAt과 동기) */
+  clockInAtDisplaySeoul?: string | null;
   clockOutAt: number | null;
   status: WorkLogStatus;
   approvedBy: string | null;

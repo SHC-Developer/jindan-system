@@ -11,6 +11,7 @@ function dataToWorkLogEntry(id: string, data: Record<string, unknown>): WorkLogE
     userId: (data.userId as string) ?? '',
     userDisplayName: (data.userDisplayName as string | null) ?? null,
     clockInAt: (data.clockInAt as number) ?? 0,
+    clockInAtDisplaySeoul: (data.clockInAtDisplaySeoul as string | null) ?? null,
     clockOutAt: (data.clockOutAt as number | null) ?? null,
     status,
     approvedBy: (data.approvedBy as string | null) ?? null,
