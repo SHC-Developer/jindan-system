@@ -79,13 +79,20 @@ export const workLogAction = onCall(
         const result = await db.runTransaction(async (tx) => {
           const snap = await tx.get(dayQuery);
           const rows = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
-          const hasRealClockIn = rows.some((r) => r.data.status !== 'absent');
-          if (hasRealClockIn) {
-            throw new HttpsError('failed-precondition', '오늘은 이미 출근 기록이 있습니다.');
+          const realRows = rows.filter((r) => r.data.status !== 'absent');
+          const absentRows = rows.filter((r) => r.data.status === 'absent');
+
+          if (realRows.length > 0) {
+            for (const r of absentRows) {
+              tx.delete(db.collection('workLogs').doc(r.id));
+            }
+            return { id: realRows[0]!.id, alreadyClockedIn: true as const };
           }
-          const absentRow = rows.find((r) => r.data.status === 'absent');
-          if (absentRow) {
-            const ref = db.collection('workLogs').doc(absentRow.id);
+
+          if (absentRows.length > 0) {
+            const sorted = [...absentRows].sort((a, b) => a.id.localeCompare(b.id));
+            const primary = sorted[0]!;
+            const ref = db.collection('workLogs').doc(primary.id);
             tx.update(ref, {
               userDisplayName,
               clockInAt: now,
@@ -100,8 +107,12 @@ export const workLogAction = onCall(
               overtimeReason: null,
               leaveType: null,
             });
-            return { id: absentRow.id };
+            for (let i = 1; i < sorted.length; i++) {
+              tx.delete(db.collection('workLogs').doc(sorted[i]!.id));
+            }
+            return { id: primary.id, alreadyClockedIn: false as const };
           }
+
           const newRef = db.collection('workLogs').doc();
           tx.set(newRef, {
             userId,
@@ -117,9 +128,12 @@ export const workLogAction = onCall(
             overtimeEndAt: null,
             overtimeReason: null,
           });
-          return { id: newRef.id };
+          return { id: newRef.id, alreadyClockedIn: false as const };
         });
-        return result;
+        if (result.alreadyClockedIn) {
+          throw new HttpsError('failed-precondition', '오늘은 이미 출근 기록이 있습니다.');
+        }
+        return { id: result.id };
       }
 
       case 'updateWorkLogToClockIn': {
@@ -138,6 +152,22 @@ export const workLogAction = onCall(
           if (data?.userId !== uid) throw new HttpsError('permission-denied', '본인의 출퇴근 기록만 수정할 수 있습니다.');
           if (data?.status !== 'absent') {
             throw new HttpsError('failed-precondition', '오늘은 이미 출근 기록이 있습니다.');
+          }
+          const clockInAt = data?.clockInAt as number;
+          const dateKey = new Date(clockInAt).toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+          const dayStart = new Date(dateKey + 'T00:00:00+09:00').getTime();
+          const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+          const dayQuery = db
+            .collection('workLogs')
+            .where('userId', '==', uid)
+            .where('clockInAt', '>=', dayStart)
+            .where('clockInAt', '<', dayEnd);
+          const daySnap = await tx.get(dayQuery);
+          for (const d of daySnap.docs) {
+            if (d.id === logId) continue;
+            if ((d.data()?.status as string) === 'absent') {
+              tx.delete(db.collection('workLogs').doc(d.id));
+            }
           }
           tx.update(ref, {
             clockInAt: clockInAtMs,
@@ -278,11 +308,24 @@ export const ensureTodayAbsentWorkLogs = onSchedule(
     const holidayKeys = await getHolidayDateKeys(year);
     if (holidayKeys.has(todayKey)) return;
 
-    const clockInAt = new Date(todayKey + 'T00:00:00+09:00').getTime();
+    const todayStart = new Date(todayKey + 'T00:00:00+09:00').getTime();
+    const todayEnd = todayStart + 24 * 60 * 60 * 1000;
+    const clockInAt = todayStart;
+
+    /** scripts/run-ensure-absent.ts 와 동일: 당일 workLog 가 이미 있으면 스킵 (스케줄 재시도·중복 실행 시 결근 N건 방지) */
+    const existingSnap = await db
+      .collection('workLogs')
+      .where('clockInAt', '>=', todayStart)
+      .where('clockInAt', '<', todayEnd)
+      .get();
+    const userIdsWithLog = new Set(
+      existingSnap.docs.map((doc) => doc.data().userId as string)
+    );
 
     const usersSnap = await db.collection('users').where('role', '==', 'general').get();
     for (const d of usersSnap.docs) {
       const uid = d.id;
+      if (userIdsWithLog.has(uid)) continue;
       const displayName = (d.data().displayName as string) ?? null;
       const leaveRef = db.collection('users').doc(uid).collection('leaveDays').doc(todayKey);
       const leaveSnap = await leaveRef.get();

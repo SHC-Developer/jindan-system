@@ -17,6 +17,13 @@ if (isDev) {
   app.setPath('userData', path.join(os.tmpdir(), 'jindan-system-electron-dev'));
 }
 
+/**
+ * 배포 빌드에서 dist 정적 서버 포트를 고정해야 함.
+ * listen(0)이면 매 실행마다 localhost 포트가 바뀌어 오리진이 달라지고,
+ * Firebase Auth(browserLocalPersistence) 로컬 스토리지가 이전 세션과 맞지 않아 재부팅 후 로그아웃됨.
+ */
+const ELECTRON_DIST_SERVER_PORT = 38471;
+
 // 단일 인스턴스: 이미 실행 중이면 새 프로세스는 종료하고, 두 번째 실행 시 기존 창을 앞으로
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -623,12 +630,30 @@ function startProdServer(): Promise<string> {
         res.end(data);
       });
     });
-    prodServer.listen(0, '127.0.0.1', () => {
+
+    const onListen = () => {
+      prodServer!.removeAllListeners('error');
       const addr = prodServer!.address();
-      const port = typeof addr === 'object' && addr ? addr.port : 32123;
+      const port = typeof addr === 'object' && addr ? addr.port : ELECTRON_DIST_SERVER_PORT;
       resolve(`http://localhost:${port}/`);
-    });
-    prodServer.on('error', reject);
+    };
+
+    const tryListen = (port: number) => {
+      prodServer!.removeAllListeners('error');
+      prodServer!.once('error', (err: NodeJS.ErrnoException) => {
+        if (err.code === 'EADDRINUSE' && port !== 0) {
+          console.warn(
+            `[Electron] 포트 ${port} 사용 중 — 임의 포트로 대체합니다. 이 경우 자동 로그인이 유지되지 않을 수 있습니다.`
+          );
+          tryListen(0);
+          return;
+        }
+        reject(err);
+      });
+      prodServer!.listen(port, '127.0.0.1', onListen);
+    };
+
+    tryListen(ELECTRON_DIST_SERVER_PORT);
   });
 }
 

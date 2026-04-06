@@ -79,7 +79,11 @@ export function useTodayWorkLog(userId: string | null, nowMs?: number): {
   const { workLogs, loading, error } = useMyWorkLogs(userId);
   const todayKey = nowMs != null ? toDateKeySeoul(nowMs) : toDateKeySeoul(Date.now());
   const todayLog = useMemo(() => {
-    return workLogs.find((log) => toDateKeySeoul(log.clockInAt) === todayKey) ?? null;
+    const candidates = workLogs.filter((log) => toDateKeySeoul(log.clockInAt) === todayKey);
+    if (candidates.length === 0) return null;
+    const nonAbsent = candidates.filter((log) => log.status !== 'absent');
+    const pool = nonAbsent.length > 0 ? nonAbsent : candidates;
+    return pool.reduce((best, log) => (log.clockInAt >= best.clockInAt ? log : best));
   }, [workLogs, todayKey]);
 
   return { todayLog, loading, error };

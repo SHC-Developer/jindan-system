@@ -1,7 +1,11 @@
 /**
  * 직원 출퇴근 액션. Callable.
  */
-export declare const workLogAction: import("firebase-functions/v2/https").CallableFunction<any, Promise<{}>, unknown>;
+export declare const workLogAction: import("firebase-functions/v2/https").CallableFunction<any, Promise<{
+    id: string;
+} | {
+    id?: undefined;
+}>, unknown>;
 /**
  * 매일 00:00(서울)에 실행. 당일이 평일·비공휴일이면,
  * 모든 일반 사용자(role=general)에 대해 당일을 일단 결근으로 1건 생성.
